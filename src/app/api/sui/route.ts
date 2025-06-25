@@ -88,7 +88,7 @@ function extractClaimFees(tx: any) {
   }
 
   return claimFeeEvents.map((event: any) => {
-    const { amount_x, amount_y, amount_z, pool_id } = event.parsedJson || {};
+    const { amount_x, amount_y, pool_id } = event.parsedJson || {};
 
     // Map token types to symbols/decimals
     const tokenX = tokenTypes[0] ? typeToSymbolAndDecimals(tokenTypes[0]) : { symbol: "TOKEN1", decimals: 6 };
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     }
 
     // --- SUI LOGIC ONLY ---
-    let allTxs: any[] = [];
+    const allTxs: any[] = [];
     let cursor: string | null = null;
     let hasNextPage = true;
     let lastCursor: string | null = null;

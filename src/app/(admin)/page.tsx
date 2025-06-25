@@ -5,12 +5,21 @@ import { EcommerceMetrics } from "@/components/ecommerce/EcommerceMetrics";
 import MonthlyTarget from "@/components/ecommerce/MonthlyTarget";
 import RecentOrders from "@/components/ecommerce/RecentOrders";
 
+interface LPResult {
+  name: string;
+  transactions: any[]; // Replace 'any' with the actual transaction type if available
+}
+interface ClaimFee {
+  name: string;
+  transactions: any[]; 
+}
+
 export default function Ecommerce() {
   // --- LP Tracker logic ---
   const [walletAddress, setWalletAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [lpResults, setLpResults] = useState<any[]>([]);
-  const [claimFees, setClaimFees] = useState<any[]>([]);
+  const [lpResults, setLpResults] = useState<LPResult[]>([]);
+  const [claimFees, setClaimFees] = useState<ClaimFee[]>([]);
   const [excludedTxs, setExcludedTxs] = useState<Record<string, boolean>>({});
 
   const handleTrackWallet = async () => {
@@ -29,7 +38,7 @@ export default function Ecommerce() {
       setLpResults(data?.sui ?? []);
       setClaimFees(data?.claimFee ?? []);
     } catch (err) {
-      alert("Failed to fetch LP data.");
+      alert(err);
     }
     setIsLoading(false);
   };
