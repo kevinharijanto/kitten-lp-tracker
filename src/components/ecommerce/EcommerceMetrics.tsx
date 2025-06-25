@@ -54,6 +54,7 @@ export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedT
   for (const tx of allTxs) {
     if (tx.amounts) {
       for (const [symbol, amount] of Object.entries(tx.amounts)) {
+       
         if (totalByToken[symbol] !== undefined) {
           totalByToken[symbol] += amount;
         }
@@ -61,6 +62,7 @@ export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedT
     }
   }
 
+  
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-12 h-full flex flex-col justify-center">
       {/* Responsive metrics: stack on mobile, row on desktop */}

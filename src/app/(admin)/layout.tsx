@@ -1,8 +1,11 @@
-"use client";
-
 import AppHeader from "@/layout/AppHeader";
 import AppFooter from "@/layout/AppFooter";
 import React from "react";
+
+export const metadata = {
+  title: "SUI LP Tracker", // <-- Change this to your desired title
+  description: "Track your SUI liquidity provider positions and claim fees.",
+};
 
 export default function AdminLayout({
   children,
