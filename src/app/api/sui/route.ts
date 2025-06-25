@@ -18,9 +18,42 @@ interface ProcessedLP {
   currentWorthUSD?: number;
 }
 
-function extractAddLiquidityFromEvents(events: any[]) {
+
+type SuiTransaction = {
+  events?: SuiEvent[];
+  transaction?: {
+    data?: {
+      transaction?: {
+        kind?: string;
+        transactions?: Array<{ MoveCall?: {
+          module: string;
+          function: string;
+          type_arguments?: string[];
+        } }>;
+      };
+    };
+  };
+  digest: string;
+  timestampMs?: string;
+  // add other fields as needed
+};
+
+
+type SuiEvent = {
+  type: string;
+  parsedJson?: {
+    amount_x?: string;
+    amount_y?: string;
+    pool_id?: string;
+    position_id?: string;
+    // add other fields as needed
+  };
+  // add other fields as needed
+};
+
+function extractAddLiquidityFromEvents(events: SuiEvent[]) {
   const addLiquidityEvent = events.find(
-    (e: any) =>
+    (e: SuiEvent) =>
       typeof e.type === "string" &&
       e.type.endsWith("::liquidity::AddLiquidityEvent")
   );
@@ -34,9 +67,9 @@ function extractAddLiquidityFromEvents(events: any[]) {
   };
 }
 
-function extractRemoveLiquidityFromEvents(events: any[]) {
+function extractRemoveLiquidityFromEvents(events: SuiEvent[]) {
   const removeLiquidityEvent = events.find(
-    (e: any) =>
+    (e: SuiEvent) =>
       typeof e.type === "string" &&
       e.type.endsWith("::liquidity::RemoveLiquidityEvent")
   );
@@ -50,9 +83,9 @@ function extractRemoveLiquidityFromEvents(events: any[]) {
   };
 }
 
-function extractClaimFees(tx: any) {
+function extractClaimFees(tx: SuiTransaction) {
   const claimFeeEvents = (tx.events || []).filter(
-    (event: any) =>
+    (event: SuiEvent) =>
       typeof event.type === "string" &&
       event.type.includes("collect::FeeCollectedEvent")
   );
@@ -87,7 +120,7 @@ function extractClaimFees(tx: any) {
     return { symbol: type, decimals: 6 };
   }
 
-  return claimFeeEvents.map((event: any) => {
+  return claimFeeEvents.map((event: SuiEvent) => {
     const { amount_x, amount_y, pool_id } = event.parsedJson || {};
 
     // Map token types to symbols/decimals
@@ -132,11 +165,11 @@ async function getHistoricalPrice(
   const dateStr = `${yyyy}-${mm}-${dd}`;
 
   if (symbol === "BTC") {
-    const found = btcPriceData.find((d: any) => d.date === dateStr);
+    const found = btcPriceData.find((d: { date: string; price: string }) => d.date === dateStr);
      return found ? Number(found.price) : (tokenPrices.BTC || 0);
   }
   if (symbol === "SUI") {
-    const found = suiPriceData.find((d: any) => d.date === dateStr);
+    const found = suiPriceData.find((d: { date: string; price: string }) => d.date === dateStr);
     
     return found ? Number(found.price) : (tokenPrices.SUI || 0);
   }
@@ -156,7 +189,7 @@ export async function POST(request: Request) {
     }
 
     // --- SUI LOGIC ONLY ---
-    const allTxs: any[] = [];
+    const allTxs: SuiTransaction[] = [];
     let cursor: string | null = null;
     let hasNextPage = true;
     let lastCursor: string | null = null;
@@ -172,7 +205,13 @@ export async function POST(request: Request) {
           showEvents: true,
         },
       });
-      allTxs.push(...res.data);
+      
+      allTxs.push(
+        ...(res.data as SuiTransaction[]).map((tx) => ({
+          ...tx,
+        events: tx.events === null ? undefined : tx.events,
+      }))
+);
 
       if (res.data.length === 0 || res.nextCursor === lastCursor) {
         break;
@@ -189,16 +228,16 @@ export async function POST(request: Request) {
     const tokenPrices = await getTokenPrices();
 
     for (const tx of allTxs) {
-      const programmableTx = tx.transaction?.data.transaction;
-      let moveCalls: any[] = [];
+      let moveCalls: { module: string; function: string; type_arguments?: string[] }[] = [];
+      const programmableTx = tx.transaction?.data?.transaction;
       if (
         programmableTx &&
         programmableTx.kind === "ProgrammableTransaction" &&
         Array.isArray(programmableTx.transactions)
       ) {
         moveCalls = programmableTx.transactions
-          .filter((txn: any) => txn.MoveCall)
-          .map((txn: any) => txn.MoveCall);
+          .filter((txn: { MoveCall?: unknown }) => txn.MoveCall)
+          .map((txn) => txn.MoveCall!);
       }
 
       // --- ADD LP ---
@@ -223,8 +262,8 @@ export async function POST(request: Request) {
           let initialWorthUSD = 0;
           let currentWorthUSD = 0;
           if (poolTokens.length === 2) {
-            amounts[poolTokens[0]] = addLiquidityData.amount_x;
-            amounts[poolTokens[1]] = addLiquidityData.amount_y;
+            amounts[poolTokens[0]] = addLiquidityData.amount_x ?? "";
+            amounts[poolTokens[1]] = addLiquidityData.amount_y ?? "";
 
             const tokenMeta = [
               { type: poolTokens[0], amount: addLiquidityData.amount_x },
@@ -264,7 +303,7 @@ export async function POST(request: Request) {
 
           foundLpPositions.push({
             protocol: "Momentum Finance",
-            poolName: poolName,
+            poolName: poolName ?? "",
             type: "add",
             initialWorthUSD: initialWorthUSD,
             txDigest: tx.digest,
@@ -296,10 +335,9 @@ export async function POST(request: Request) {
 
           const amounts: { [coinType: string]: string } = {};
           let initialWorthUSD = 0;
-          let currentWorthUSD = 0;
           if (poolTokens.length === 2) {
-            amounts[poolTokens[0]] = removeLiquidityData.amount_x;
-            amounts[poolTokens[1]] = removeLiquidityData.amount_y;
+            amounts[poolTokens[0]] = removeLiquidityData.amount_x ?? "";
+            amounts[poolTokens[1]] = removeLiquidityData.amount_y ?? "";
 
             const tokenMeta = [
               { type: poolTokens[0], amount: removeLiquidityData.amount_x },
@@ -330,10 +368,6 @@ export async function POST(request: Request) {
               initialWorthUSD -=
                 (parseFloat(amount || "0") / Math.pow(10, decimals)) *
                 histPrice;
-              const currPrice = tokenPrices[symbol] || 0;
-              currentWorthUSD -=
-                (parseFloat(amount || "0") / Math.pow(10, decimals)) *
-                currPrice;
             }
           }
 
@@ -353,15 +387,21 @@ export async function POST(request: Request) {
       // --- CLAIM FEES ---
       const claimFeeData = extractClaimFees(tx);
       for (const fee of claimFeeData) {
-        const poolName = fee.pool;
-        const amounts = { ...fee };
-        delete amounts.pool;
+        const poolName = fee.pool ?? "";
+        // Convert all values to strings and remove undefined values and pool key
+        const amounts: { [coinType: string]: string } = Object.entries(fee)
+          .filter(([key, value]) => key !== "pool" && value !== undefined)
+          .reduce((acc, [key, value]) => {
+            acc[key] = String(value);
+            return acc;
+          }, {} as { [coinType: string]: string });
 
         let initialWorthUSD = 0;
         let currentWorthUSD = 0;
 
-        for (const [symbol, amount] of Object.entries(amounts)) {
-          if (typeof amount !== "number" || isNaN(amount)) continue;
+        for (const [symbol, amountStr] of Object.entries(amounts)) {
+          const amount = parseFloat(amountStr);
+          if (isNaN(amount)) continue;
           // Historical price
           const histPrice = await getHistoricalPrice(
             symbol,

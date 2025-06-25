@@ -5,21 +5,39 @@ import { EcommerceMetrics } from "@/components/ecommerce/EcommerceMetrics";
 import MonthlyTarget from "@/components/ecommerce/MonthlyTarget";
 import RecentOrders from "@/components/ecommerce/RecentOrders";
 
+// Transaction type for LPResult
+interface Transaction {
+  type: "add" | "remove";
+  txUrl: string;
+  initialWorth: number;
+  currentWorth: number;
+  amounts: Record<string, number>;
+  timestamp: string;
+}
+
+// LPResult type
 interface LPResult {
   name: string;
-  transactions: any[]; // Replace 'any' with the actual transaction type if available
+  transactions: Transaction[];
 }
-interface ClaimFee {
-  name: string;
-  transactions: any[]; 
+
+// ClaimFee transaction type
+interface ClaimFeeTransaction {
+  poolName: string;
+  txUrl: string;
+  amounts: Record<string, string>;
+  timestamp: string;
+  currentWorthUSD: number;
+  initializeWorthUSD: number;
 }
+
 
 export default function Ecommerce() {
   // --- LP Tracker logic ---
   const [walletAddress, setWalletAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [lpResults, setLpResults] = useState<LPResult[]>([]);
-  const [claimFees, setClaimFees] = useState<ClaimFee[]>([]);
+  const [claimFees, setClaimFees] = useState<ClaimFeeTransaction[]>([]);
   const [excludedTxs, setExcludedTxs] = useState<Record<string, boolean>>({});
 
   const handleTrackWallet = async () => {
@@ -76,7 +94,22 @@ export default function Ecommerce() {
       </div>
       
       <div className="col-span-12">
-        <RecentOrders lpResults={{ sui: lpResults }} isLoading={isLoading} excludedTxs={excludedTxs} setExcludedTxs={setExcludedTxs} />
+        <RecentOrders
+          lpResults={{
+            sui: lpResults.map(pool => ({
+              ...pool,
+              transactions: pool.transactions.map(tx => ({
+                ...tx,
+                amounts: Object.fromEntries(
+                  Object.entries(tx.amounts).map(([k, v]) => [k, v.toString()])
+                ),
+              })),
+            })),
+          }}
+          isLoading={isLoading}
+          excludedTxs={excludedTxs}
+          setExcludedTxs={setExcludedTxs}
+        />
       </div>
     </div>
   );

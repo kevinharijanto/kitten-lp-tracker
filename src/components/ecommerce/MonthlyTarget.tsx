@@ -2,18 +2,45 @@
 import { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
 import React, { useState } from "react";
+import Image from "next/image";
 import { startOfMonth, startOfWeek, startOfDay, isAfter, parseISO } from "date-fns";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
+// Add at the top of MonthlyTarget.tsx if not already imported
+interface Transaction {
+  type: "add" | "remove";
+  txUrl: string;
+  initialWorth: number;
+  currentWorth: number;
+  amounts: Record<string, number>;
+  timestamp: string;
+}
+
+interface LPResult {
+  name: string;
+  transactions: Transaction[];
+}
+
+interface ClaimFeeTransaction {
+  poolName: string;
+  txUrl: string;
+  amounts: Record<string, string>;
+  timestamp: string;
+  currentWorthUSD: number;
+  initializeWorthUSD: number;
+}
+
 // Helper to get token totals for a given claimFee array
-function getTokenTotals(fees: any[]) {
+function getTokenTotals(fees: ClaimFeeTransaction[]) {
   const totals: Record<string, number> = {};
   for (const tx of fees) {
     if (tx.amounts) {
       for (const [symbol, amount] of Object.entries(tx.amounts)) {
-        if (typeof amount === "number") {
-          totals[symbol] = (totals[symbol] || 0) + amount;
+        // ClaimFeeTransaction.amounts is Record<string, string>
+        const numAmount = typeof amount === "number" ? amount : Number(amount);
+        if (!isNaN(numAmount)) {
+          totals[symbol] = (totals[symbol] || 0) + numAmount;
         }
       }
     }
@@ -56,7 +83,7 @@ function ClaimFeeTooltip({ tokenTotals }: { tokenTotals: Record<string, number> 
             className="flex items-center justify-between text-xs mb-1"
           >
             <span className="flex items-center gap-2">
-              <img src={logo} alt={symbol} className="w-4 h-4" />
+              <Image src={logo} alt={symbol} width={16} height={16} className="w-4 h-4" />
               <span className={`font-semibold ${color}`}>{symbol}</span>
             </span>
             <span className={`font-mono ${color}`}>
@@ -73,8 +100,8 @@ export default function MonthlyTarget({
   lpResults = [],
   claimFees = [],
 }: {
-  lpResults?: any[];
-  claimFees?: any[];
+  lpResults?: LPResult[];
+  claimFees?: ClaimFeeTransaction[];
 }) {
   // Calculate total claim fee (USD)
   const totalClaimFee = claimFees.reduce(
@@ -84,11 +111,11 @@ export default function MonthlyTarget({
 
   // Calculate total current value (USD)
   const totalCurrentValue = lpResults.reduce(
-    (sum: number, pool: any) =>
+    (sum: number, pool: LPResult) =>
       sum +
       (Array.isArray(pool.transactions)
         ? pool.transactions.reduce(
-            (txSum: number, tx: any) =>
+            (txSum: number, tx: Transaction) =>
               txSum + (typeof tx.currentWorth === "number" ? tx.currentWorth : 0),
             0
           )
@@ -209,7 +236,7 @@ export default function MonthlyTarget({
           </span>
         </div>
         <p className="mx-auto mt-10 w-full max-w-[380px] text-center text-sm text-gray-500 sm:text-base">
-          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that's {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!
+          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!s {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!
         </p>
       </div>
 

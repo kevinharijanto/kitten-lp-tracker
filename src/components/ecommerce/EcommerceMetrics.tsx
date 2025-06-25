@@ -1,9 +1,9 @@
 "use client";
 import React from "react";
 import Badge from "../ui/badge/Badge";
-import { ArrowDownIcon, ArrowUpIcon, DollarLineIcon, GroupIcon, LockIcon, ShootingStarIcon } from "@/icons";
-import dynamic from "next/dynamic";
-const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
+import { ArrowDownIcon, ArrowUpIcon, DollarLineIcon, LockIcon, ShootingStarIcon } from "@/icons";
+import Image from "next/image";
+
 
 type Transaction = {
   initialWorth?: number;
@@ -48,21 +48,7 @@ export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedT
       maximumFractionDigits: 2,
     }).format(amount);
 
-  // Prepare data for the chart
-  const poolNames = pools.map((pool, i) => pool.name ?? `Pool ${i + 1}`);
-  const txCounts = pools.map((pool) => pool.transactions.length);
-
-  const options = {
-    chart: {
-      type: "bar" as const,
-      height: 180,
-    },
-    xaxis: {
-      categories: poolNames,
-    },
-  };
-  const series = [{ name: "Transactions", data: txCounts }];
-
+ 
   // Calculate total deposited for each token
   const totalByToken: Record<string, number> = { LBTC: 0, SUI: 0, USDT: 0, USDC: 0 };
   for (const tx of allTxs) {
@@ -142,10 +128,18 @@ export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedT
         {/* Make table horizontally scrollable on mobile */}
         <div className="space-y-2 overflow-x-auto">
           <div className="min-w-[340px] grid grid-cols-4 gap-x-6 font-semibold text-gray-500 dark:text-gray-400 pb-1">
-            <span className="flex items-center gap-1"><img src="/images/icons/btc.svg" alt="LBTC" className="w-5 h-5" />LBTC</span>
-            <span className="flex items-center gap-1"><img src="/images/icons/sui.svg" alt="SUI" className="w-5 h-5" />SUI</span>
-            <span className="flex items-center gap-1"><img src="/images/icons/usdt.svg" alt="USDT" className="w-5 h-5" />USDT</span>
-            <span className="flex items-center gap-1"><img src="/images/icons/usdc.svg" alt="USDC" className="w-5 h-5" />USDC</span>
+            <span className="flex items-center gap-1">
+              <Image src="/images/icons/btc.svg" alt="LBTC" width={20} height={20} className="w-5 h-5" />LBTC
+            </span>
+            <span className="flex items-center gap-1">
+              <Image src="/images/icons/sui.svg" alt="SUI" width={20} height={20} className="w-5 h-5" />SUI
+            </span>
+            <span className="flex items-center gap-1">
+              <Image src="/images/icons/usdt.svg" alt="USDT" width={20} height={20} className="w-5 h-5" />USDT
+            </span>
+            <span className="flex items-center gap-1">
+              <Image src="/images/icons/usdc.svg" alt="USDC" width={20} height={20} className="w-5 h-5" />USDC
+            </span>
           </div>
           <div className="min-w-[340px] grid grid-cols-4 gap-x-6 font-bold text-gray-800 dark:text-white pb-2">
             <span className="flex items-center gap-1 text-orange-600">
