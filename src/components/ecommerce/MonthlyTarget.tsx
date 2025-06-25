@@ -1,76 +1,173 @@
 "use client";
-// import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
-
 import dynamic from "next/dynamic";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { MoreDotIcon } from "@/icons";
-import { useState } from "react";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-// Dynamically import the ReactApexChart component
-const ReactApexChart = dynamic(() => import("react-apexcharts"), {
-  ssr: false,
-});
+import React, { useState } from "react";
+import { startOfMonth, startOfWeek, startOfDay, isAfter, parseISO } from "date-fns";
 
-export default function MonthlyTarget() {
-  const series = [75.55];
+const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
+
+// Helper to get token totals for a given claimFee array
+function getTokenTotals(fees: any[]) {
+  const totals: Record<string, number> = {};
+  for (const tx of fees) {
+    if (tx.amounts) {
+      for (const [symbol, amount] of Object.entries(tx.amounts)) {
+        if (typeof amount === "number") {
+          totals[symbol] = (totals[symbol] || 0) + amount;
+        }
+      }
+    }
+  }
+  return totals;
+}
+
+// Tooltip component for claimed amounts
+function ClaimFeeTooltip({ tokenTotals }: { tokenTotals: Record<string, number> }) {
+  return (
+    <div className="absolute z-10 top-full mt-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 min-w-[200px]">
+      <div className="text-xs font-semibold mb-2 text-gray-700 dark:text-gray-200">
+        Claimed Amounts
+      </div>
+      {Object.entries(tokenTotals).length === 0 && (
+        <div className="text-xs text-gray-400">No claim fees</div>
+      )}
+      {Object.entries(tokenTotals).map(([symbol, amount]) => {
+        let logo = "";
+        let color = "";
+        if (symbol === "SUI") {
+          logo = "/images/icons/sui.svg";
+          color = "text-blue-500";
+        } else if (symbol === "USDC") {
+          logo = "/images/icons/usdc.svg";
+          color = "text-indigo-500";
+        } else if (symbol === "USDT") {
+          logo = "/images/icons/usdt.svg";
+          color = "text-green-500";
+        } else if (symbol === "LBTC" || symbol === "BTC") {
+          logo = "/images/icons/btc.svg";
+          color = "text-orange-500";
+        } else {
+          logo = "/images/icons/token.svg";
+          color = "text-gray-500";
+        }
+        return (
+          <div
+            key={symbol}
+            className="flex items-center justify-between text-xs mb-1"
+          >
+            <span className="flex items-center gap-2">
+              <img src={logo} alt={symbol} className="w-4 h-4" />
+              <span className={`font-semibold ${color}`}>{symbol}</span>
+            </span>
+            <span className={`font-mono ${color}`}>
+              {amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function MonthlyTarget({
+  lpResults = [],
+  claimFees = [],
+}: {
+  lpResults?: any[];
+  claimFees?: any[];
+}) {
+  // Calculate total claim fee (USD)
+  const totalClaimFee = claimFees.reduce(
+    (sum, tx) => sum + (typeof tx.currentWorthUSD === "number" ? tx.currentWorthUSD : 0),
+    0
+  );
+
+  // Calculate total current value (USD)
+  const totalCurrentValue = lpResults.reduce(
+    (sum: number, pool: any) =>
+      sum +
+      (Array.isArray(pool.transactions)
+        ? pool.transactions.reduce(
+            (txSum: number, tx: any) =>
+              txSum + (typeof tx.currentWorth === "number" ? tx.currentWorth : 0),
+            0
+          )
+        : 0),
+    0
+  );
+
+  // Calculate claim fee percent for chart
+  const claimFeePercent =
+    totalCurrentValue > 0 ? (totalClaimFee / totalCurrentValue) * 100 : 0;
+  const series = [Number(claimFeePercent.toFixed(2))];
+
+  // Filter claimFees by date for each period
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday as start
+  const dayStart = startOfDay(now);
+
+  const filterFees = (fromDate: Date) =>
+    claimFees.filter(
+      (tx) =>
+        isAfter(parseISO(tx.timestamp), fromDate) &&
+        typeof tx.currentWorthUSD === "number"
+    );
+
+  const monthlyFees = filterFees(monthStart);
+  const weeklyFees = filterFees(weekStart);
+  const dailyFees = filterFees(dayStart);
+
+  // Calculate claim fee sums for each period
+  const monthlyClaimFee = monthlyFees.reduce(
+    (sum, tx) => sum + (typeof tx.currentWorthUSD === "number" ? tx.currentWorthUSD : 0),
+    0
+  );
+  const weeklyClaimFee = weeklyFees.reduce(
+    (sum, tx) => sum + (typeof tx.currentWorthUSD === "number" ? tx.currentWorthUSD : 0),
+    0
+  );
+  const dailyClaimFee = dailyFees.reduce(
+    (sum, tx) => sum + (typeof tx.currentWorthUSD === "number" ? tx.currentWorthUSD : 0),
+    0
+  );
+
+  // Tooltip state for each section
+  const [showMonthlyTooltip, setShowMonthlyTooltip] = useState(false);
+  const [showWeeklyTooltip, setShowWeeklyTooltip] = useState(false);
+  const [showDailyTooltip, setShowDailyTooltip] = useState(false);
+  const [showTotalTooltip, setShowTotalTooltip] = useState(false);
+
   const options: ApexOptions = {
     colors: ["#465FFF"],
     chart: {
       fontFamily: "Outfit, sans-serif",
       type: "radialBar",
-      height: 330,
-      sparkline: {
-        enabled: true,
-      },
+      height: 220,
+      sparkline: { enabled: true },
     },
     plotOptions: {
       radialBar: {
         startAngle: -85,
         endAngle: 85,
-        hollow: {
-          size: "80%",
-        },
-        track: {
-          background: "#E4E7EC",
-          strokeWidth: "100%",
-          margin: 5, // margin is in pixels
-        },
+        hollow: { size: "60%" },
+        track: { background: "#E4E7EC", strokeWidth: "100%", margin: 5 },
         dataLabels: {
-          name: {
-            show: false,
-          },
+          name: { show: false },
           value: {
-            fontSize: "36px",
+            fontSize: "12px",
             fontWeight: "600",
             offsetY: -40,
             color: "#1D2939",
-            formatter: function (val) {
-              return val + "%";
-            },
+            formatter: (val) => val + "%",
           },
         },
       },
     },
-    fill: {
-      type: "solid",
-      colors: ["#465FFF"],
-    },
-    stroke: {
-      lineCap: "round",
-    },
+    fill: { type: "solid", colors: ["#465FFF"] },
+    stroke: { lineCap: "round" },
     labels: ["Progress"],
   };
-
-  const [isOpen, setIsOpen] = useState(false);
-
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
-  function closeDropdown() {
-    setIsOpen(false);
-  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -78,130 +175,91 @@ export default function MonthlyTarget() {
         <div className="flex justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              Monthly Target
+              Total Claim Fee
             </h3>
             <p className="mt-1 font-normal text-gray-500 text-theme-sm dark:text-gray-400">
-              Target you’ve set for each month
+              The total of all claim fees collected so far.
             </p>
-          </div>
-          <div className="relative inline-block">
-            <button onClick={toggleDropdown} className="dropdown-toggle">
-              <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
-            </button>
-            <Dropdown
-              isOpen={isOpen}
-              onClose={closeDropdown}
-              className="w-40 p-2"
-            >
-              <DropdownItem
-                tag="a"
-                onItemClick={closeDropdown}
-                className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                View More
-              </DropdownItem>
-              <DropdownItem
-                tag="a"
-                onItemClick={closeDropdown}
-                className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                Delete
-              </DropdownItem>
-            </Dropdown>
           </div>
         </div>
         <div className="relative ">
+          <div
+            className="mt-6 flex flex-col items-center relative"
+            onMouseEnter={() => setShowTotalTooltip(true)}
+            onMouseLeave={() => setShowTotalTooltip(false)}
+          >
+            <span className="text-4xl font-bold text-brand-500 cursor-pointer">
+              ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+            {/* Tooltip for total claim fee */}
+            {showTotalTooltip && (
+              <ClaimFeeTooltip tokenTotals={getTokenTotals(claimFees)} />
+            )}
+          </div>
           <div className="max-h-[330px]">
             <ReactApexChart
               options={options}
               series={series}
               type="radialBar"
-              height={330}
+              height={270}
             />
           </div>
-
           <span className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-[95%] rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">
-            +10%
+            -
           </span>
         </div>
         <p className="mx-auto mt-10 w-full max-w-[380px] text-center text-sm text-gray-500 sm:text-base">
-          You earn $3287 today, it&apos;s higher than last month. Keep up your
-          good work!
+          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that's {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!
         </p>
       </div>
 
       <div className="flex items-center justify-center gap-5 px-6 py-3.5 sm:gap-8 sm:py-5">
-        <div>
+        <div
+          className="relative flex flex-col items-center"
+          onMouseEnter={() => setShowMonthlyTooltip(true)}
+          onMouseLeave={() => setShowMonthlyTooltip(false)}
+        >
           <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Target
+            Monthly
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.26816 13.6632C7.4056 13.8192 7.60686 13.9176 7.8311 13.9176C7.83148 13.9176 7.83187 13.9176 7.83226 13.9176C8.02445 13.9178 8.21671 13.8447 8.36339 13.6981L12.3635 9.70076C12.6565 9.40797 12.6567 8.9331 12.3639 8.6401C12.0711 8.34711 11.5962 8.34694 11.3032 8.63973L8.5811 11.36L8.5811 2.5C8.5811 2.08579 8.24531 1.75 7.8311 1.75C7.41688 1.75 7.0811 2.08579 7.0811 2.5L7.0811 11.3556L4.36354 8.63975C4.07055 8.34695 3.59568 8.3471 3.30288 8.64009C3.01008 8.93307 3.01023 9.40794 3.30321 9.70075L7.26816 13.6632Z"
-                fill="#D92D20"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg cursor-pointer">
+            ${monthlyClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
+          {showMonthlyTooltip && (
+            <ClaimFeeTooltip tokenTotals={getTokenTotals(monthlyFees)} />
+          )}
         </div>
-
         <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
-
-        <div>
+        <div
+          className="relative flex flex-col items-center"
+          onMouseEnter={() => setShowWeeklyTooltip(true)}
+          onMouseLeave={() => setShowWeeklyTooltip(false)}
+        >
           <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Revenue
+            Weekly
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg cursor-pointer">
+            ${weeklyClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
+          {showWeeklyTooltip && (
+            <ClaimFeeTooltip tokenTotals={getTokenTotals(weeklyFees)} />
+          )}
         </div>
-
         <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
-
-        <div>
+        <div
+          className="relative flex flex-col items-center"
+          onMouseEnter={() => setShowDailyTooltip(true)}
+          onMouseLeave={() => setShowDailyTooltip(false)}
+        >
           <p className="mb-1 text-center text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
-            Today
+            Daily
           </p>
-          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg">
-            $20K
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M7.60141 2.33683C7.73885 2.18084 7.9401 2.08243 8.16435 2.08243C8.16475 2.08243 8.16516 2.08243 8.16556 2.08243C8.35773 2.08219 8.54998 2.15535 8.69664 2.30191L12.6968 6.29924C12.9898 6.59203 12.9899 7.0669 12.6971 7.3599C12.4044 7.6529 11.9295 7.65306 11.6365 7.36027L8.91435 4.64004L8.91435 13.5C8.91435 13.9142 8.57856 14.25 8.16435 14.25C7.75013 14.25 7.41435 13.9142 7.41435 13.5L7.41435 4.64442L4.69679 7.36025C4.4038 7.65305 3.92893 7.6529 3.63613 7.35992C3.34333 7.06693 3.34348 6.59206 3.63646 6.29926L7.60141 2.33683Z"
-                fill="#039855"
-              />
-            </svg>
+          <p className="flex items-center justify-center gap-1 text-base font-semibold text-gray-800 dark:text-white/90 sm:text-lg cursor-pointer">
+            ${dailyClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
+          {showDailyTooltip && (
+            <ClaimFeeTooltip tokenTotals={getTokenTotals(dailyFees)} />
+          )}
         </div>
       </div>
     </div>
