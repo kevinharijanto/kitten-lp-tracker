@@ -236,7 +236,7 @@ export default function MonthlyTarget({
           </span>
         </div>
         <p className="mx-auto mt-10 w-full max-w-[380px] text-center text-sm text-gray-500 sm:text-base">
-          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that          You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!s {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!
+            You earn ${totalClaimFee.toLocaleString(undefined, { maximumFractionDigits: 2 })} on total claim fee, that {claimFeePercent.toFixed(2)}% of your investment. Keep up your good work!
         </p>
       </div>
 
