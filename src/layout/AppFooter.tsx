@@ -18,7 +18,7 @@ const AppFooter: React.FC = () =>  {
          
           <span>
             <span className="font-medium">SUI:</span>{" "}
-            <span className="font-mono">0x6940126d04e8b2b7931bb541608b9de258e882336526c839cb0f3190a678302e</span>
+            <span className="font-mono">0x997efc3a1ef4810c94a05fc1ab653f56a0661b0bcd58be7e998087b3c3942e25</span>
           </span>
         </div>
       </div>
