@@ -20,12 +20,12 @@ type Props = {
   lpResults?: { sui?: Pool[] };
 };
 
-export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedTxs: Record<string, boolean> }) => {
+export const EcommerceMetrics = ({ lpResults }: Props) => {
   // Calculate totals
   const pools = lpResults?.sui ?? [];
-  // Exclude transactions
+  // Get all transactions
   const allTxs = pools.flatMap((pool) =>
-    pool.transactions.filter((tx) => tx.txUrl && !excludedTxs[tx.txUrl])
+    pool.transactions.filter((tx) => tx.txUrl)
   );
   const totalInitial = allTxs.reduce(
     (sum, tx) => sum + (tx.initialWorth ?? 0),
@@ -159,7 +159,6 @@ export const EcommerceMetrics = ({ lpResults, excludedTxs }: Props & { excludedT
           </div>
         </div>
       </div>
-      {/* <ReactApexChart options={options} series={series} type="bar" height={180} /> */}
     </div>
   );
 };

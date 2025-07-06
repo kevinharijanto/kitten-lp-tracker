@@ -21,6 +21,13 @@ interface LPResult {
   transactions: Transaction[];
 }
 
+// LP Range type
+interface LPRange {
+  poolName: string;
+  lower: number;
+  upper: number;
+}
+
 // ClaimFee transaction type
 interface ClaimFeeTransaction {
   poolName: string;
@@ -28,7 +35,7 @@ interface ClaimFeeTransaction {
   amounts: Record<string, string>;
   timestamp: string;
   currentWorthUSD: number;
-  initializeWorthUSD: number;
+  initialWorthUSD: number;
 }
 
 
@@ -38,7 +45,7 @@ export default function Ecommerce() {
   const [isLoading, setIsLoading] = useState(false);
   const [lpResults, setLpResults] = useState<LPResult[]>([]);
   const [claimFees, setClaimFees] = useState<ClaimFeeTransaction[]>([]);
-  const [excludedTxs, setExcludedTxs] = useState<Record<string, boolean>>({});
+  const [lpRanges, setLpRanges] = useState<LPRange[]>([]);
 
   const handleTrackWallet = async () => {
     if (!walletAddress) {
@@ -52,9 +59,12 @@ export default function Ecommerce() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress }),
       });
+      
       const data = await response.json();
-      setLpResults(data?.sui ?? []);
-      setClaimFees(data?.claimFee ?? []);
+      
+      setLpResults(data?.transactions ?? []);
+      setClaimFees(data?.claimFees ?? []);
+      setLpRanges(data?.lpRanges ?? []);
     } catch (err) {
       alert(err);
     }
@@ -72,7 +82,7 @@ export default function Ecommerce() {
             value={walletAddress}
             onChange={(e) => setWalletAddress(e.target.value)}
             placeholder="Enter SUI wallet address..."
-            className="flex-grow border rounded-md py-2 px-4"
+            className="flex-grow border rounded-md py-2 px-4  dark:text-gray-300"
           />
           <button
             onClick={handleTrackWallet}
@@ -85,12 +95,15 @@ export default function Ecommerce() {
       </div>
 
       <div className="col-span-12 space-y-6 xl:col-span-7">
-        <EcommerceMetrics lpResults={{ sui: lpResults }} excludedTxs={excludedTxs} />
+        <EcommerceMetrics lpResults={{ sui: lpResults }}  />
       </div>
 
       <div className="col-span-12 xl:col-span-5">
         {/* Pass totalClaimFee to MonthlyTarget */}
-        <MonthlyTarget lpResults={lpResults} claimFees={claimFees} />
+        <MonthlyTarget lpResults={lpResults} claimFees={claimFees.map(fee => ({
+          ...fee,
+          initializeWorthUSD: fee.initialWorthUSD
+        }))} />
       </div>
       
       <div className="col-span-12">
@@ -106,9 +119,8 @@ export default function Ecommerce() {
               })),
             })),
           }}
+          lpRanges={lpRanges}
           isLoading={isLoading}
-          excludedTxs={excludedTxs}
-          setExcludedTxs={setExcludedTxs}
         />
       </div>
     </div>
