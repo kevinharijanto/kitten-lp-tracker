@@ -3,6 +3,8 @@ import btcPriceData from "@/app/data/btc_price_data.json";
 import suiPriceData from "@/app/data/sui_price_data.json";
 import { SuiClient } from "@mysten/sui.js/client";
 
+const MOMENTUM_PACKAGE_ID = "0x70285592c97965e811e0c6f98dccc3a9c2b4ad854b3594faab9597ada267b860";
+
 export function extractAddLiquidityFromEvents(events: SuiEvent[]) {
   const addLiquidityEvent = events.find(
     (e: SuiEvent) =>
@@ -49,7 +51,7 @@ export function extractClaimFees(tx: SuiTransaction) {
   const claimFeeEvents = (tx.events || []).filter(
     (event: SuiEvent) =>
       typeof event.type === "string" &&
-      event.type.includes("collect::FeeCollectedEvent")
+      event.type.includes(MOMENTUM_PACKAGE_ID + "::collect::FeeCollectedEvent")
   );
 
   // Find the MoveCall for collect::fee to get token types

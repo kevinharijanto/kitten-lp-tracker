@@ -285,7 +285,7 @@ export async function handleSuiPost(request: Request) {
               if (tokenType.includes('sui::SUI')) return 9;
               if (tokenType.includes('usdc::USDC')) return 6;
               if (tokenType.includes('usdt::USDT')) return 6;
-              if (tokenType.includes('lbtc::LBTC')) return 8;
+              if (tokenType.includes('lbtc::LBTC')) return 10;
               if (tokenType.includes('x_sui::X_SUI')) return 9;
               return 9;
             };
