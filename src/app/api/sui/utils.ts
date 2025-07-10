@@ -3,8 +3,6 @@ import btcPriceData from "@/app/data/btc_price_data.json";
 import suiPriceData from "@/app/data/sui_price_data.json";
 import { SuiClient } from "@mysten/sui.js/client";
 
-const MOMENTUM_PACKAGE_ID = "0x70285592c97965e811e0c6f98dccc3a9c2b4ad854b3594faab9597ada267b860";
-
 export function extractAddLiquidityFromEvents(events: SuiEvent[]) {
   const addLiquidityEvent = events.find(
     (e: SuiEvent) =>
@@ -47,11 +45,33 @@ export function typeToSymbolAndDecimals(type: string) {
   return { symbol: type, decimals: 6 };
 }
 
+// Helper to extract token symbol from coinType string
+function extractSymbolFromCoinType(coinType: string): string {
+  // Example: "0x2::sui::SUI" => "SUI"
+  const match = coinType.match(/::([A-Z_]+)$/i);
+  return match ? match[1].replace("X_SUI", "XSUI") : coinType;
+}
+
 export function extractClaimFees(tx: SuiTransaction) {
-  const claimFeeEvents = (tx.events || []).filter(
+  const events = tx.events || [];
+
+  // ::collect::FeeCollectedEvent is mandatory
+  const claimFeeEvents = events.filter(
     (event: SuiEvent) =>
       typeof event.type === "string" &&
-      event.type.includes(MOMENTUM_PACKAGE_ID + "::collect::FeeCollectedEvent")
+      event.type.includes("::collect::FeeCollectedEvent")
+  );
+
+  // If no fee collection event, it's not a claim fee transaction we're interested in.
+  if (claimFeeEvents.length === 0) {
+    return [];
+  }
+
+  // ::collect::CollectPoolRewardEvent is optional
+  const rewardEvents = events.filter(
+    (event: SuiEvent) =>
+      typeof event.type === "string" &&
+      event.type.includes("::collect::CollectPoolRewardEvent")
   );
 
   // Find the MoveCall for collect::fee to get token types
@@ -66,7 +86,7 @@ export function extractClaimFees(tx: SuiTransaction) {
       if (
         txn.MoveCall &&
         txn.MoveCall.module === "collect" &&
-        txn.MoveCall.function === "fee"
+        (txn.MoveCall.function === "fee" || txn.MoveCall.function === "reward")
       ) {
         tokenTypes = txn.MoveCall.type_arguments || [];
         break;
@@ -74,24 +94,58 @@ export function extractClaimFees(tx: SuiTransaction) {
     }
   }
 
-  return claimFeeEvents.map((event: SuiEvent) => {
-    const { amount_x, amount_y, pool_id } = event.parsedJson || {};
+  // Collect all claimed tokens
+  const claimedTokens: Record<string, number> = {};
+
+  // Handle FeeCollectedEvent (mandatory)
+  for (const event of claimFeeEvents) {
+    const { amount_x, amount_y } = event.parsedJson || {};
 
     // Map token types to symbols/decimals
     const tokenX = tokenTypes[0] ? typeToSymbolAndDecimals(tokenTypes[0]) : { symbol: "TOKEN1", decimals: 6 };
     const tokenY = tokenTypes[1] ? typeToSymbolAndDecimals(tokenTypes[1]) : { symbol: "TOKEN2", decimals: 6 };
 
-    return {
-      pool: pool_id,
-      [tokenX.symbol]: amount_x ? Number(amount_x) / Math.pow(10, tokenX.decimals) : 0,
-      [tokenY.symbol]: amount_y ? Number(amount_y) / Math.pow(10, tokenY.decimals) : 0,
-    };
-  });
+    if (amount_x) {
+      claimedTokens[tokenX.symbol] = (claimedTokens[tokenX.symbol] || 0) + Number(amount_x) / Math.pow(10, tokenX.decimals);
+    }
+    if (amount_y) {
+      claimedTokens[tokenY.symbol] = (claimedTokens[tokenY.symbol] || 0) + Number(amount_y) / Math.pow(10, tokenY.decimals);
+    }
+  }
+
+  // Handle CollectPoolRewardEvent (optional)
+  for (const event of rewardEvents) {
+    const { amount, reward_coin_type } = event.parsedJson || {};
+    if (
+      amount &&
+      reward_coin_type &&
+      typeof reward_coin_type === "object" &&
+      reward_coin_type !== null &&
+      "name" in reward_coin_type &&
+      typeof (reward_coin_type as { name?: unknown }).name === "string"
+    ) {
+      const coinTypeName = (reward_coin_type as { name: string }).name;
+      const { decimals } = typeToSymbolAndDecimals(coinTypeName);
+      const symbol = extractSymbolFromCoinType(coinTypeName);
+      claimedTokens[symbol] = (claimedTokens[symbol] || 0) + Number(amount) / Math.pow(10, decimals);
+    }
+  }
+
+  // Return as array for compatibility with UI
+  return [
+    {
+      pool: claimFeeEvents[0]?.parsedJson?.pool_id || rewardEvents[0]?.parsedJson?.pool_id || "",
+      amounts: claimedTokens,
+      txDigest: tx.digest,
+      timestamp: tx.timestampMs ? new Date(Number(tx.timestampMs)).toISOString() : "",
+      txUrl: `https://suiexplorer.com/txblock/${tx.digest}`,
+    },
+  ];
 }
 
 export async function getTokenPrices(): Promise<{ [symbol: string]: number }> {
   const res = await fetch(
-    "https://api.coingecko.com/api/v3/simple/price?ids=sui,solana,tether,usd-coin,bitcoin&vs_currencies=usd"
+    "https://api.coingecko.com/api/v3/simple/price?ids=sui,deep,solana,tether,usd-coin,bitcoin&vs_currencies=usd"
   );
   const data = await res.json();
   return {
@@ -102,6 +156,7 @@ export async function getTokenPrices(): Promise<{ [symbol: string]: number }> {
     USDT: data.tether?.usd || 1,
     BTC: data.bitcoin?.usd || 0,
     LBTC: data.bitcoin?.usd || 0,
+    DEEP: data.deep?.usd || 0,
   };
 }
 

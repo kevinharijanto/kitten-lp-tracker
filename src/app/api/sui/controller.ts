@@ -128,6 +128,7 @@ export async function handleSuiPost(request: Request) {
 
           const amounts: { [coinType: string]: string } = {};
           let initialWorthUSD = 0;
+          let currentWorthUSD = 0;
           if (poolTokens.length === 2) {
             amounts[poolTokens[0]] = removeLiquidityData.amount_x ?? "";
             amounts[poolTokens[1]] = removeLiquidityData.amount_y ?? "";
@@ -144,6 +145,9 @@ export async function handleSuiPost(request: Request) {
               );
               initialWorthUSD -=
                 (parseFloat(amount || "0") / Math.pow(10, decimals)) * histPrice;
+              const currPrice = tokenPrices[symbol] || 0;
+              currentWorthUSD -=
+                (parseFloat(amount || "0") / Math.pow(10, decimals)) * currPrice;
             }
           }
 
@@ -155,7 +159,7 @@ export async function handleSuiPost(request: Request) {
             txDigest: tx.digest,
             timestamp: new Date(parseInt(tx.timestampMs ?? "0")).toISOString(),
             amounts,
-            currentWorthUSD: initialWorthUSD, // use initial worth as current for remove
+            currentWorthUSD: currentWorthUSD, // use initial worth as current for remove
           });
         }
       }
@@ -164,19 +168,12 @@ export async function handleSuiPost(request: Request) {
       const claimFeeData = extractClaimFees(tx);
       for (const fee of claimFeeData) {
         const poolName = fee.pool ?? "";
-        // Convert all values to strings and remove undefined values and pool key
-        const amounts: { [coinType: string]: string } = Object.entries(fee)
-          .filter(([key, value]) => key !== "pool" && value !== undefined)
-          .reduce((acc, [key, value]) => {
-            acc[key] = String(value);
-            return acc;
-          }, {} as { [coinType: string]: string });
 
         let initialWorthUSD = 0;
         let currentWorthUSD = 0;
 
-        for (const [symbol, amountStr] of Object.entries(amounts)) {
-          const amount = parseFloat(amountStr);
+        for (const [symbol, amountStr] of Object.entries(fee.amounts)) {
+          const amount = amountStr;
           if (isNaN(amount)) continue;
           // Historical price
           const histPrice = await getHistoricalPrice(
@@ -197,7 +194,7 @@ export async function handleSuiPost(request: Request) {
           initialWorthUSD,
           txDigest: tx.digest,
           timestamp: new Date(parseInt(tx.timestampMs ?? "0")).toISOString(),
-          amounts,
+          amounts : fee.amounts,
           currentWorthUSD,
         });
       }
@@ -369,7 +366,7 @@ export async function handleSuiPost(request: Request) {
             (acc, [key, value]) => {
               const { symbol, decimals } = typeToSymbolAndDecimals(key);
               if (symbol) {
-                acc[symbol] = (acc[symbol] || 0) + parseFloat(value) / Math.pow(10, decimals);
+                acc[symbol] = (acc[symbol] || 0) + parseFloat(value as string) / Math.pow(10, decimals);
               }
               return acc;
             },

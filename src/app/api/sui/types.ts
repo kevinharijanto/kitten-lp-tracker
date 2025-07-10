@@ -51,7 +51,7 @@ export interface ProcessedLP {
   txDigest: string;
   type: "add" | "remove" | "claim";
   timestamp: string;
-  amounts: { [coinType: string]: string };
+  amounts: { [key: string]: string | number };
   currentWorthUSD?: number;
 }
 

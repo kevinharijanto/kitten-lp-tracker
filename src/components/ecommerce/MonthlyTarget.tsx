@@ -25,7 +25,7 @@ interface LPResult {
 interface ClaimFeeTransaction {
   poolName: string;
   txUrl: string;
-  amounts: Record<string, string>;
+  amounts: Record<string, string | number>;
   timestamp: string;
   currentWorthUSD: number;
   initialWorthUSD: number;
@@ -73,6 +73,9 @@ function ClaimFeeTooltip({ tokenTotals }: { tokenTotals: Record<string, number> 
         } else if (symbol === "LBTC" || symbol === "BTC") {
           logo = "/images/icons/btc.svg";
           color = "text-orange-500";
+        } else if (symbol === "DEEP") {
+          logo = "/images/icons/deep.svg";
+          color = "text-blue-500";
         } else {
           logo = "/images/icons/token.svg";
           color = "text-gray-500";
@@ -110,6 +113,7 @@ function ClaimFeeDetailPopup({
     if (symbol === "USDT") return "/images/icons/usdt.svg";
     if (symbol === "LBTC" || symbol === "BTC") return "/images/icons/btc.svg";
     if (symbol === "XSUI" || symbol === "X_SUI") return "/images/icons/sui.svg";
+    if (symbol === "DEEP" || symbol === "DEEP") return "/images/icons/deep.svg";
     return "/images/icons/token.svg";
   };
 
@@ -119,6 +123,7 @@ function ClaimFeeDetailPopup({
     if (symbol === "USDT") return "text-green-500";
     if (symbol === "LBTC" || symbol === "BTC") return "text-orange-500";
     if (symbol === "XSUI" || symbol === "X_SUI") return "text-blue-400";
+    if (symbol === "DEEP" || symbol === "DEEP") return "text-blue-400";
     return "text-gray-500";
   };
 

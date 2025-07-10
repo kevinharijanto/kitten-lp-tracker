@@ -1,6 +1,6 @@
 {
   "name": "sui-lp-tracker",
-  "version": "1.3.9",
+  "version": "1.4.9",
   "private": false,
   "scripts": {
     "dev": "next dev",
