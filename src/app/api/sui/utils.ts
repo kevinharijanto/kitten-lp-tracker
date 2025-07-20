@@ -151,6 +151,7 @@ export async function getTokenPrices(): Promise<{ [symbol: string]: number }> {
   return {
     SUI: data.sui.usd,
     XSUI: data.sui.usd,
+    XBTC: data.bitcoin?.usd || 0,
     SOL: data.solana.usd,
     USDC: data["usd-coin"]?.usd || 1,
     USDT: data.tether?.usd || 1,
@@ -168,6 +169,7 @@ export async function getHistoricalPrice(
   if (symbol === "USDC" || symbol === "USDT") return 1;
   if (symbol === "LBTC") symbol = "BTC";
   if (symbol === "XSUI") symbol = "SUI";
+  if (symbol === "XBTC") symbol = "BTC";  
 
 
   const dateObj = new Date(timestampMs);
