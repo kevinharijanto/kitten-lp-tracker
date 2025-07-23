@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useState } from "react";
-import { EcommerceMetrics } from "@/components/ecommerce/EcommerceMetrics";
+import { EcommerceMetrics } from "@/components/ecommerce/SummaryCard";
 import MonthlyTarget from "@/components/ecommerce/MonthlyTarget";
-import RecentOrders from "@/components/ecommerce/RecentOrders";
+import RecentOrders from "@/components/ecommerce/TransactionDetail";
 
 // Transaction type for LPResult
 interface Transaction {

@@ -277,6 +277,7 @@ export async function handleSuiPost(request: Request) {
             const tickLowerValue = convertI32ToSigned(fields.tick_lower_index.fields.bits);
             const tickUpperValue = convertI32ToSigned(fields.tick_upper_index.fields.bits);
 
+           
             // Get token decimals and symbols
             const getTokenDecimals = (tokenType: string): number => {
               if (tokenType.includes('sui::SUI')) return 9;
@@ -284,15 +285,17 @@ export async function handleSuiPost(request: Request) {
               if (tokenType.includes('usdt::USDT')) return 6;
               if (tokenType.includes('lbtc::LBTC')) return 10;
               if (tokenType.includes('x_sui::X_SUI')) return 9;
+              if (tokenType.includes('xbtc::XBTC')) return 10;
               return 9;
             };
-
+            
             const getTokenSymbol = (tokenType: string): string => {
               if (tokenType.includes('sui::SUI')) return 'SUI';
               if (tokenType.includes('usdc::USDC')) return 'USDC';
               if (tokenType.includes('usdt::USDT')) return 'USDT';
               if (tokenType.includes('lbtc::LBTC')) return 'LBTC';
               if (tokenType.includes('x_sui::X_SUI')) return 'X_SUI';
+              if (tokenType.includes('xbtc::XBTC')) return 'XBTC';
               return 'UNKNOWN';
             };
 

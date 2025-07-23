@@ -42,6 +42,7 @@ export function typeToSymbolAndDecimals(type: string) {
   if (t.includes("usdt")) return { symbol: "USDT", decimals: 6 };
   if (t.includes("lbtc")) return { symbol: "LBTC", decimals: 8 };
   if (t.includes("x_sui")) return { symbol: "XSUI", decimals: 9 };
+  if (t.includes("xbtc")) return { symbol: "XBTC", decimals: 8 };
   return { symbol: type, decimals: 6 };
 }
 
