@@ -110,6 +110,7 @@ export default function RecentOrders({
               <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                 Type
               </TableCell>
+              
               <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                 Initial Worth
               </TableCell>
@@ -121,6 +122,9 @@ export default function RecentOrders({
               </TableCell>
               <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                 Range LP
+              </TableCell>
+              <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
+                Amounts
               </TableCell>
               <TableCell isHeader className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
                 Tx
@@ -226,6 +230,7 @@ export default function RecentOrders({
                         >
                           {tx.type === "add" ? "Add" : "Remove"}
                         </TableCell>
+                        
                         <TableCell className="py-3 text-gray-800 dark:text-white/90">
                           {formatCurrency(tx.initialWorth ?? 0)}
                         </TableCell>
@@ -240,6 +245,13 @@ export default function RecentOrders({
                           {formatCurrency(il)}
                         </TableCell>
                         <TableCell className="py-3 text-gray-700 dark:text-gray-300">{""}</TableCell>
+                        <TableCell className="py-3 text-xs text-gray-700 dark:text-gray-300">
+                          {Object.entries(tx.amounts).map(([coin, amount]) => (
+                            <div key={coin}>
+                              {Number(amount).toFixed(4)} {coin}
+                            </div>
+                          ))}
+                        </TableCell>
                         <TableCell className="py-3">
                           <a
                             href={tx.txUrl}
@@ -376,6 +388,16 @@ export default function RecentOrders({
                             <span className={`${il < 0 ? "text-red-500" : "text-green-500"}`}>
                               {formatCurrency(il)}
                             </span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500 dark:text-gray-400 block text-xs">Amounts</span>
+                            <div className="text-gray-800 dark:text-white/90">
+                              {Object.entries(tx.amounts).map(([coin, amount]) => (
+                                <div key={coin}>
+                                  {Number(amount).toFixed(4)} {coin}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                           <div>
                             <span className="text-gray-500 dark:text-gray-400 block text-xs">Date</span>

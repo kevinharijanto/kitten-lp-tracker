@@ -43,7 +43,9 @@ export function typeToSymbolAndDecimals(type: string) {
   if (t.includes("lbtc")) return { symbol: "LBTC", decimals: 8 };
   if (t.includes("x_sui")) return { symbol: "XSUI", decimals: 9 };
   if (t.includes("xbtc")) return { symbol: "XBTC", decimals: 8 };
-  return { symbol: type, decimals: 6 };
+  if (t.includes("::btc")) return { symbol: "BTC", decimals: 8 };
+
+  return { symbol: type, decimals: 100 };
 }
 
 // Helper to extract token symbol from coinType string
@@ -103,8 +105,8 @@ export function extractClaimFees(tx: SuiTransaction) {
     const { amount_x, amount_y } = event.parsedJson || {};
 
     // Map token types to symbols/decimals
-    const tokenX = tokenTypes[0] ? typeToSymbolAndDecimals(tokenTypes[0]) : { symbol: "TOKEN1", decimals: 6 };
-    const tokenY = tokenTypes[1] ? typeToSymbolAndDecimals(tokenTypes[1]) : { symbol: "TOKEN2", decimals: 6 };
+    const tokenX = tokenTypes[0] ? typeToSymbolAndDecimals(tokenTypes[0]) : { symbol: "TOKEN1", decimals: 100 };
+    const tokenY = tokenTypes[1] ? typeToSymbolAndDecimals(tokenTypes[1]) : { symbol: "TOKEN2", decimals: 100 };
 
     if (amount_x) {
       claimedTokens[tokenX.symbol] = (claimedTokens[tokenX.symbol] || 0) + Number(amount_x) / Math.pow(10, tokenX.decimals);
@@ -129,6 +131,7 @@ export function extractClaimFees(tx: SuiTransaction) {
       const { decimals } = typeToSymbolAndDecimals(coinTypeName);
       const symbol = extractSymbolFromCoinType(coinTypeName);
       claimedTokens[symbol] = (claimedTokens[symbol] || 0) + Number(amount) / Math.pow(10, decimals);
+      
     }
   }
 
