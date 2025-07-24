@@ -248,99 +248,168 @@ function ClaimFeeDetailPopup({
               No claim fee transactions found
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Pool
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Claimed Tokens
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      USD Value
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Transaction
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  {claimFees
-                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                    .map((fee, index) => (
-                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatPoolName(fee.poolName)}
-                            </span>
-                            <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-                              {fee.poolName.slice(0, 12)}...
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Pool
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Claimed Tokens
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        USD Value
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Transaction
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {claimFees
+                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .map((fee, index) => (
+                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {formatPoolName(fee.poolName)}
+                              </span>
+                              <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                {fee.poolName.slice(0, 12)}...
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(fee.amounts).map(([symbol, amount]) => {
-                              const numAmount = Number(amount);
-                              if (numAmount === 0) return null;
-                              
-                              return (
-                                <div key={symbol} className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg px-2 py-1">
-                                  <Image 
-                                    src={getTokenIcon(symbol)} 
-                                    alt={symbol} 
-                                    width={16} 
-                                    height={16} 
-                                    className="w-4 h-4" 
-                                  />
-                                  <span className={`text-xs font-medium ${getTokenColor(symbol)}`}>
-                                    {numAmount.toLocaleString(undefined, { 
-                                      maximumFractionDigits: 6,
-                                      minimumFractionDigits: 0 
-                                    })} {symbol}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                            ${fee.currentWorthUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-2">
+                              {Object.entries(fee.amounts).map(([symbol, amount]) => {
+                                const numAmount = Number(amount);
+                                if (numAmount === 0) return null;
+                                
+                                return (
+                                  <div key={symbol} className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg px-2 py-1">
+                                    <Image 
+                                      src={getTokenIcon(symbol)} 
+                                      alt={symbol} 
+                                      width={16} 
+                                      height={16} 
+                                      className="w-4 h-4" 
+                                    />
+                                    <span className={`text-xs font-medium ${getTokenColor(symbol)}`}>
+                                      {numAmount.toLocaleString(undefined, { 
+                                        maximumFractionDigits: 6,
+                                        minimumFractionDigits: 0 
+                                      })} {symbol}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                              ${fee.currentWorthUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {format(parseISO(fee.timestamp), "MMM dd, yyyy")}
+                            </span>
+                            <div className="text-xs text-gray-400 dark:text-gray-500">
+                              {format(parseISO(fee.timestamp), "HH:mm:ss")}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <a
+                              href={fee.txUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm transition-colors"
+                            >
+                              View
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card List */}
+              <div className="md:hidden p-4 space-y-4">
+                {claimFees
+                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                  .map((fee, index) => (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg shadow p-4 space-y-4">
+                      {/* Card Header */}
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-base font-bold text-gray-900 dark:text-white">
+                            {formatPoolName(fee.poolName)}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                            {fee.poolName.slice(0, 12)}...
+                          </div>
+                        </div>
+                        <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                          ${fee.currentWorthUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* Claimed Tokens */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Claimed Tokens</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(fee.amounts).map(([symbol, amount]) => {
+                            const numAmount = Number(amount);
+                            if (numAmount === 0) return null;
+                            return (
+                              <div key={symbol} className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg px-2 py-1">
+                                <Image src={getTokenIcon(symbol)} alt={symbol} width={16} height={16} className="w-4 h-4" />
+                                <span className={`text-sm font-medium ${getTokenColor(symbol)}`}>
+                                  {numAmount.toLocaleString(undefined, { maximumFractionDigits: 6, minimumFractionDigits: 0 })} {symbol}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Card Footer */}
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div>
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             {format(parseISO(fee.timestamp), "MMM dd, yyyy")}
                           </span>
                           <div className="text-xs text-gray-400 dark:text-gray-500">
                             {format(parseISO(fee.timestamp), "HH:mm:ss")}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <a
-                            href={fee.txUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm transition-colors"
-                          >
-                            View
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                        <a
+                          href={fee.txUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-semibold transition-colors"
+                        >
+                          View Tx
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </>
           )}
         </div>
       </div>

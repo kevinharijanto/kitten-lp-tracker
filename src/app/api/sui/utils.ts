@@ -109,10 +109,18 @@ export function extractClaimFees(tx: SuiTransaction) {
     const tokenY = tokenTypes[1] ? typeToSymbolAndDecimals(tokenTypes[1]) : { symbol: "TOKEN2", decimals: 100 };
 
     if (amount_x) {
-      claimedTokens[tokenX.symbol] = (claimedTokens[tokenX.symbol] || 0) + Number(amount_x) / Math.pow(10, tokenX.decimals);
+      const calculatedAmount = Number(amount_x) / Math.pow(10, tokenX.decimals);
+      const isBtcVariant = ["BTC", "LBTC", "XBTC"].includes(tokenX.symbol);
+      if (!isBtcVariant || (isBtcVariant && calculatedAmount <= 0.01)) {
+        claimedTokens[tokenX.symbol] = (claimedTokens[tokenX.symbol] || 0) + calculatedAmount;
+      }
     }
     if (amount_y) {
-      claimedTokens[tokenY.symbol] = (claimedTokens[tokenY.symbol] || 0) + Number(amount_y) / Math.pow(10, tokenY.decimals);
+      const calculatedAmount = Number(amount_y) / Math.pow(10, tokenY.decimals);
+      const isBtcVariant = ["BTC", "LBTC", "XBTC"].includes(tokenY.symbol);
+      if (!isBtcVariant || (isBtcVariant && calculatedAmount <= 0.01)) {
+        claimedTokens[tokenY.symbol] = (claimedTokens[tokenY.symbol] || 0) + calculatedAmount;
+      }
     }
   }
 

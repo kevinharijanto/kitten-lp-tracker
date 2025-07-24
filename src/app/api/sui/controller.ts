@@ -354,7 +354,7 @@ export async function handleSuiPost(request: Request) {
       if (!poolsMap[lp.poolName]) poolsMap[lp.poolName] = [];
       poolsMap[lp.poolName].push(lp);
     }
-
+    
     // Format response with separated data
     return NextResponse.json({
       // Transaction data (add/remove LP)
