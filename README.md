@@ -1,18 +1,18 @@
-# SUI Liquidity Provider Tracker
+# Hyperliquid Kittenswap LP Tracker
 
-Welcome to the **SUI Liquidity Provider Tracker** project!  
-This app helps you track your SUI LP (Liquidity Provider) positions, claim fees, and portfolio performance in real time.
+Welcome to the **Hyperliquid Kittenswap LP Tracker** project!
+This app helps you inspect Kittenswap liquidity provider (LP) positions for any Hyperliquid wallet.
 
 ---
 
 ## About
 
-This project is a work-in-progress tool for tracking SUI liquidity provider activity, including:
+This project is a work-in-progress tool for tracking Hyperliquid Kittenswap liquidity provider activity, including:
 
-- **LP Positions**: See your deposits, withdrawals, and current values.
-- **Claim Fees**: Track all claim fees, with breakdowns by token and time period.
-- **Impermanent Loss**: Visualize your IL and portfolio changes.
-- **Exclusion Feature**: Exclude specific transactions from calculations for custom analytics.
+- **LP Positions**: View all detected Kittenswap pools for a wallet and their USD values.
+- **Token Exposure**: See the token amounts that make up each LP position.
+- **Fees**: Inspect any accrued or claimable fees if Hyperliquid exposes them.
+- **Timestamps**: Check when each position was last updated according to the payload data.
 
 The frontend is built using [TailAdmin](https://tailadmin.com) (Next.js + Tailwind CSS), providing a modern, responsive dashboard UI.
 
@@ -33,33 +33,38 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
 
 ---
 
-## Demo
-
-*Coming soon!*
-
----
-
 ## How to Run
 
 1. **Clone the repo:**
     ```bash
-    git clone https://github.com/your-username/sui-lp-tracker.git
-    cd sui-lp-tracker
+    git clone https://github.com/your-username/kitten-lp-tracker.git
+    cd kitten-lp-tracker
     ```
 
 2. **Install dependencies:**
     ```bash
     npm install
-    # or
-    yarn install
     ```
 
-3. **Start the development server:**
+3. **(Optional) Configure data endpoints:**
+   Create an `.env.local` file if you need to override any of the defaults used by the LP tracker API route:
+    ```bash
+    # Proxy for the official Hyperliquid info endpoint
+    HYPERLIQUID_INFO_URL=https://your-proxy/info
+
+    # Comma-separated fallback endpoints that return Kittenswap LP data
+    # Refer to https://docs.kittenswap.finance/tokenomics/deployed-contracts for the latest API hosts
+    KITTENSWAP_FALLBACK_URLS=https://api.kittenswap.finance/api/hyperliquid/lp-positions,https://prod.kittenswap.finance/api/hyperliquid/lp-positions
+    ```
+   The tracker will first query the Hyperliquid info endpoint and, if it fails, iterate through the configured Kittenswap endpoints.
+
+4. **Start the development server:**
     ```bash
     npm run dev
-    # or
-    yarn dev
     ```
+
+5. **Open the tracker:**
+   Visit [http://localhost:3000/admin](http://localhost:3000/admin) and enter any Hyperliquid wallet address to fetch its Kittenswap LP positions.
 
 ---
 
