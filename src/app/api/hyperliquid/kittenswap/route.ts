@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import {
-  extractKittenswapPositions,
-  isValidWalletAddress,
-  type KittenswapPosition,
-} from "./utils";
+import { fetchKittenswapData } from "./providers";
+import { isValidWalletAddress } from "./utils";
 
 const DEFAULT_INFO_URL = "https://api.hyperliquid.xyz/info";
+const DEFAULT_FALLBACK_URLS = [
+  "https://api.kittenswap.finance/api/hyperliquid/lp-positions",
+  "https://prod.kittenswap.finance/api/hyperliquid/lp-positions",
+];
 
 interface RequestBody {
   walletAddress?: string;
@@ -25,37 +26,26 @@ export async function POST(request: Request) {
 
     const infoUrl = process.env.HYPERLIQUID_INFO_URL ?? DEFAULT_INFO_URL;
 
-    const apiResponse = await fetch(infoUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "spotUserState",
-        user: walletAddress,
-      }),
-      // Hyperliquid API does not require credentials; ensure caching is disabled.
-      cache: "no-store",
+    const fallbackUrlsEnv = process.env.KITTENSWAP_FALLBACK_URLS;
+    const fallbackUrls = fallbackUrlsEnv
+      ? fallbackUrlsEnv
+          .split(",")
+          .map((url) => url.trim())
+          .filter(Boolean)
+      : DEFAULT_FALLBACK_URLS;
+
+    const { positions, source, attempts } = await fetchKittenswapData({
+      walletAddress,
+      infoUrl,
+      fallbackUrls,
     });
-
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      return NextResponse.json(
-        {
-          error: "Failed to fetch Hyperliquid data.",
-          details: `API responded with ${apiResponse.status}`,
-          payload: errorText || undefined,
-        },
-        { status: apiResponse.status }
-      );
-    }
-
-    const payload = await apiResponse.json();
-    const positions: KittenswapPosition[] = extractKittenswapPositions(payload);
 
     return NextResponse.json({
       protocol: "Kittenswap",
       network: "Hyperliquid",
+      source,
+      attempts,
+
       positions,
     });
   } catch (error) {

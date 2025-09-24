@@ -45,13 +45,17 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
     ```bash
     npm install
     ```
-
-3. **(Optional) Configure a custom Hyperliquid info endpoint:**
-   If you run a proxy for the Hyperliquid API, create an `.env.local` file and set:
+3. **(Optional) Configure data endpoints:**
+   Create an `.env.local` file if you need to override any of the defaults used by the LP tracker API route:
     ```bash
+    # Proxy for the official Hyperliquid info endpoint
     HYPERLIQUID_INFO_URL=https://your-proxy/info
+
+    # Comma-separated fallback endpoints that return Kittenswap LP data
+    # Refer to https://docs.kittenswap.finance/tokenomics/deployed-contracts for the latest API hosts
+    KITTENSWAP_FALLBACK_URLS=https://api.kittenswap.finance/api/hyperliquid/lp-positions,https://prod.kittenswap.finance/api/hyperliquid/lp-positions
     ```
-   When unset, the app defaults to `https://api.hyperliquid.xyz/info`.
+   The tracker will first query the Hyperliquid info endpoint and, if it fails, iterate through the configured Kittenswap endpoints.
 
 4. **Start the development server:**
     ```bash
