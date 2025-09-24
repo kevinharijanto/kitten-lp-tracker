@@ -37,10 +37,17 @@ export default function HyperliquidKittenswapPage() {
   const [positions, setPositions] = useState<KittenswapPosition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const isValidWallet = (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value.trim());
+
 
   const handleTrackWallet = async () => {
     if (!walletAddress.trim()) {
       setError("Please enter a wallet address.");
+      return;
+    }
+
+    if (!isValidWallet(walletAddress)) {
+      setError("Wallet must be a valid 0x-prefixed Hyperliquid address.");
       return;
     }
 
