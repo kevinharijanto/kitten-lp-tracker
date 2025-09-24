@@ -15,7 +15,9 @@ interface FetchOutcome {
   attempts: AttemptLog[];
 }
 
+
 export async function fetchKittenswapData({ walletAddress }: FetchOptions): Promise<FetchOutcome> {
   const { positions, source, attempts } = await fetchOnchainKittenswapPositions(walletAddress);
   return { positions, source, attempts };
+
 }
