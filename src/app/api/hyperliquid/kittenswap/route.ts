@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     }
 
     const infoUrl = process.env.HYPERLIQUID_INFO_URL ?? DEFAULT_INFO_URL;
+
     const fallbackUrlsEnv = process.env.KITTENSWAP_FALLBACK_URLS;
     const fallbackUrls = fallbackUrlsEnv
       ? fallbackUrlsEnv
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       network: "Hyperliquid",
       source,
       attempts,
+
       positions,
     });
   } catch (error) {

@@ -45,7 +45,6 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
     ```bash
     npm install
     ```
-
 3. **(Optional) Configure data endpoints:**
    Create an `.env.local` file if you need to override any of the defaults used by the LP tracker API route:
     ```bash
