@@ -51,12 +51,17 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
     # Override the default HyperEVM RPC endpoint
     HYPEREVM_RPC=https://rpc.hyperliquid.xyz/evm
 
+3. **(Optional) Configure on-chain RPC settings:**
+   The tracker now decodes KittenSwap Algebra CLMM NFTs directly from HyperEVM. You can tweak the RPC and log scanning behaviour in `.env.local` if needed:
+    ```bash
+    # Override the default HyperEVM RPC endpoint
+    HYPEREVM_RPC=https://rpc.hyperliquid.xyz/evm
+
     # (Optional) Optimise transfer log scanning when enumeration fails
     START_BLOCK=0
     CHUNK_SPAN=800
     ```
    The defaults work for most setups, but operators running their own archival RPCs can lower `CHUNK_SPAN` or raise `START_BLOCK` to improve responsiveness.
-
 
 4. **Start the development server:**
     ```bash

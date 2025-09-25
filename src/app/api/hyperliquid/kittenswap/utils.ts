@@ -10,6 +10,16 @@ export interface KittenswapPosition {
   sharePercent?: number;
   tokenAmounts: Record<string, number>;
   accruedFeesUsd?: number;
+  accruedFeesTokens: Record<string, number>;
+  rewardKitten?: number;
+  rewardKittenUsd?: number;
+  priceLower?: number;
+  priceUpper?: number;
+  priceCurrent?: number;
+  tickLower?: number;
+  tickUpper?: number;
+  inRange: boolean;
+  isActive: boolean;
   lastUpdated?: string;
 }
 
@@ -397,43 +407,117 @@ function toKittenswapPosition(params: {
   owed0: bigint;
   owed1: bigint;
   tick: number;
+  tickLower: number;
+  tickUpper: number;
+  liquidity: bigint;
   tokenId: number;
 }) {
-  const { symbol0, symbol1, decimals0, decimals1, amount0, amount1, owed0, owed1, tick, tokenId } = params;
+  const {
+    symbol0,
+    symbol1,
+    decimals0,
+    decimals1,
+    amount0,
+    amount1,
+    owed0,
+    owed1,
+    tick,
+    tickLower,
+    tickUpper,
+    liquidity,
+    tokenId,
+  } = params;
   const poolName = `${symbol0}/${symbol1} • #${tokenId}`;
 
-  const priceNow = tickToPrice(tick);
-  const baseStable = isStable(symbol0);
-  const quoteStable = isStable(symbol1);
+  const symbol0Upper = symbol0.toUpperCase();
+  const symbol1Upper = symbol1.toUpperCase();
 
-  let totalValueUsd = 0;
-  let accruedFeesUsd: number | undefined;
+  const sortedLower = Math.min(tickLower, tickUpper);
+  const sortedUpper = Math.max(tickLower, tickUpper);
 
-  if (baseStable) {
-    const owed0Human = Number(formatUnitsClamp(owed0, decimals0));
-    const owed1Human = Number(formatUnitsClamp(owed1, decimals1));
-    const v0 = amount0;
-    const v1 = priceNow > 0 ? amount1 / priceNow : 0;
-    totalValueUsd = v0 + v1;
-    accruedFeesUsd = owed0Human + (priceNow > 0 ? owed1Human / priceNow : 0);
-  } else if (quoteStable) {
-    const owed0Human = Number(formatUnitsClamp(owed0, decimals0));
-    const owed1Human = Number(formatUnitsClamp(owed1, decimals1));
-    const v0 = amount0 * priceNow;
-    const v1 = amount1;
-    totalValueUsd = v0 + v1;
-    accruedFeesUsd = owed0Human * priceNow + owed1Human;
+  const priceScale = Math.pow(10, decimals0 - decimals1);
+  const safeScale = Number.isFinite(priceScale) && priceScale > 0 ? priceScale : 1;
+  const priceNowRaw = tickToPrice(tick);
+  const priceLowerRaw = tickToPrice(sortedLower);
+  const priceUpperRaw = tickToPrice(sortedUpper);
+
+  const priceCurrent = Number.isFinite(priceNowRaw * safeScale) ? priceNowRaw * safeScale : undefined;
+  const priceLower = Number.isFinite(priceLowerRaw * safeScale) ? priceLowerRaw * safeScale : undefined;
+  const priceUpper = Number.isFinite(priceUpperRaw * safeScale) ? priceUpperRaw * safeScale : undefined;
+
+  const baseStable = isStable(symbol0Upper);
+  const quoteStable = isStable(symbol1Upper);
+
+  const owed0Human = Number(formatUnitsClamp(owed0, decimals0));
+  const owed1Human = Number(formatUnitsClamp(owed1, decimals1));
+
+  const token0ToUsd = baseStable
+    ? (value: number) => value
+    : quoteStable && priceCurrent && priceCurrent > 0
+      ? (value: number) => value * priceCurrent
+      : undefined;
+
+  const token1ToUsd = quoteStable
+    ? (value: number) => value
+    : baseStable && priceCurrent && priceCurrent > 0
+      ? (value: number) => value / priceCurrent
+      : undefined;
+
+  const totalValueParts: number[] = [];
+  if (token0ToUsd) totalValueParts.push(token0ToUsd(amount0));
+  if (token1ToUsd) totalValueParts.push(token1ToUsd(amount1));
+  const totalValueUsd = totalValueParts.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+
+  const accruedUsdParts: number[] = [];
+  if (token0ToUsd) accruedUsdParts.push(token0ToUsd(owed0Human));
+  if (token1ToUsd) accruedUsdParts.push(token1ToUsd(owed1Human));
+  const accruedFeesUsd =
+    accruedUsdParts.length > 0
+      ? accruedUsdParts.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0)
+      : undefined;
+
+  let rewardKitten: number | undefined;
+  let rewardKittenUsd: number | undefined;
+  if (symbol0Upper.includes("KITTEN")) {
+    rewardKitten = clampPrecision(owed0Human);
+    if (token0ToUsd) {
+      rewardKittenUsd = token0ToUsd(owed0Human);
+    }
+  } else if (symbol1Upper.includes("KITTEN")) {
+    rewardKitten = clampPrecision(owed1Human);
+    if (token1ToUsd) {
+      rewardKittenUsd = token1ToUsd(owed1Human);
+    }
   }
+
+  if (rewardKittenUsd !== undefined && !Number.isFinite(rewardKittenUsd)) {
+    rewardKittenUsd = undefined;
+  }
+
+  const accruedFeesTokens: Record<string, number> = {
+    [symbol0Upper]: clampPrecision(owed0Human),
+    [symbol1Upper]: clampPrecision(owed1Human),
+  };
 
   return {
     poolName,
     totalValueUsd: Number.isFinite(totalValueUsd) && totalValueUsd > 0 ? totalValueUsd : 0,
     sharePercent: undefined,
     tokenAmounts: {
-      [symbol0.toUpperCase()]: clampPrecision(amount0),
-      [symbol1.toUpperCase()]: clampPrecision(amount1),
+      [symbol0Upper]: clampPrecision(amount0),
+      [symbol1Upper]: clampPrecision(amount1),
     },
     accruedFeesUsd,
+    accruedFeesTokens,
+    rewardKitten,
+    rewardKittenUsd,
+    priceLower,
+    priceUpper,
+    priceCurrent,
+    tickLower: sortedLower,
+    tickUpper: sortedUpper,
+    inRange: tick >= sortedLower && tick <= sortedUpper,
+    isActive: liquidity > 0n,
     lastUpdated: new Date().toISOString(),
   } satisfies KittenswapPosition;
 }
@@ -485,6 +569,9 @@ async function resolvePosition(tokenId: number, attempts: AttemptLog[]) {
       owed0: position.owed0,
       owed1: position.owed1,
       tick: currentTick,
+      tickLower: Math.min(position.tickLower, position.tickUpper),
+      tickUpper: Math.max(position.tickLower, position.tickUpper),
+      liquidity: position.liquidity,
       tokenId,
     });
   } catch (error) {
