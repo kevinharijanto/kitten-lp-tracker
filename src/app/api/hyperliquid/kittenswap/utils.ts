@@ -2,13 +2,9 @@
 
 import { keccak_256 } from "@noble/hashes/sha3";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import http from "http";
-import https from "https";
-import tls from "tls";
-
-const { request: httpRequest } = http;
-const { request: httpsRequest } = https;
-const { connect: tlsConnect } = tls;
+import { request as httpRequest } from "http";
+import { request as httpsRequest } from "https";
+import { connect as tlsConnect } from "tls";
 
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
@@ -39,6 +35,12 @@ export interface AttemptLog {
   error?: string;
 }
 
+export interface FetchResultMeta {
+  kittenUsd?: number; // USD0 per KITTEN
+  totalKittenFees?: number; // tokens
+  totalKittenFeesUsd?: number; // USD0
+}
+
 const RPC_URL = process.env.HYPEREVM_RPC || "https://rpc.hyperliquid.xyz/evm";
 
 const PROXY_URL =
@@ -49,19 +51,20 @@ const PROXY_URL =
 
 const NO_PROXY = process.env.NO_PROXY || process.env.no_proxy;
 
+// ---- Token addresses (set via env) ----
+// Replace placeholders with actual HyperEVM addresses (lowercase 0x…)
+const KITTEN_TOKEN = (process.env.KITTEN_TOKEN || "0x0000000000000000000000000000000000000000").toLowerCase() as Address;
+const USD0_TOKEN = (process.env.USD0_TOKEN || "0x0000000000000000000000000000000000000000").toLowerCase() as Address;
+
 function shouldBypassProxy(targetUrl: string) {
   if (!NO_PROXY) return false;
-
   try {
     const hostname = new URL(targetUrl).hostname.toLowerCase();
-    const entries = NO_PROXY.split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean);
-
+    const entries = NO_PROXY.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
     return entries.some((entry) => {
       if (entry === "*") return true;
       if (hostname === entry) return true;
-      if (entry.startsWith(".")) {
-        return hostname.endsWith(entry);
-      }
+      if (entry.startsWith(".")) return hostname.endsWith(entry);
       return hostname.endsWith(`.${entry}`);
     });
   } catch {
@@ -108,18 +111,16 @@ function performHttpRequest(target: URL, body: string, proxyUrl?: URL) {
     const proxy = proxyUrl;
 
     if (isHttps) {
-      const connectReq = httpRequest(
-        {
-          host: proxy.hostname,
-          port: proxy.port ? Number(proxy.port) : 80,
-          method: "CONNECT",
-          path: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
-          headers: {
-            Host: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
-            "Proxy-Connection": "keep-alive",
-          },
-        }
-      );
+      const connectReq = httpRequest({
+        host: proxy.hostname,
+        port: proxy.port ? Number(proxy.port) : 80,
+        method: "CONNECT",
+        path: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
+        headers: {
+          Host: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
+          "Proxy-Connection": "keep-alive",
+        },
+      });
 
       connectReq.once("connect", (res, socket) => {
         if (res.statusCode !== 200) {
@@ -127,12 +128,7 @@ function performHttpRequest(target: URL, body: string, proxyUrl?: URL) {
           reject(new Error(`Proxy CONNECT failed with status ${res.statusCode}`));
           return;
         }
-
-        const tlsSocket = tlsConnect({
-          socket,
-          servername: target.hostname,
-        });
-
+        const tlsSocket = tlsConnect({ socket, servername: target.hostname });
         const req = httpsRequest(
           {
             method: "POST",
@@ -145,12 +141,8 @@ function performHttpRequest(target: URL, body: string, proxyUrl?: URL) {
           (res) => {
             let data = "";
             res.setEncoding("utf8");
-            res.on("data", (chunk) => {
-              data += chunk;
-            });
-            res.on("end", () => {
-              resolve({ statusCode: res.statusCode ?? 0, body: data });
-            });
+            res.on("data", (chunk) => (data += chunk));
+            res.on("end", () => resolve({ statusCode: res.statusCode ?? 0, body: data }));
           }
         );
         req.on("error", (error) => {
@@ -172,20 +164,13 @@ function performHttpRequest(target: URL, body: string, proxyUrl?: URL) {
         host: proxy.hostname,
         port: proxy.port ? Number(proxy.port) : 80,
         path: target.href,
-        headers: {
-          ...headers,
-          Host: target.host,
-        },
+        headers: { ...headers, Host: target.host },
       },
       (res) => {
         let data = "";
         res.setEncoding("utf8");
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-        res.on("end", () => {
-          resolve({ statusCode: res.statusCode ?? 0, body: data });
-        });
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve({ statusCode: res.statusCode ?? 0, body: data }));
       }
     );
     req.on("error", reject);
@@ -275,7 +260,6 @@ async function rpcCall(method: string, params: unknown[]) {
   const body = JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params });
 
   const { statusCode, body: responseBody } = await performHttpRequest(target, body, proxy);
-
   if (statusCode < 200 || statusCode >= 300) {
     throw new Error(`RPC ${method} failed with status ${statusCode}`);
   }
@@ -292,12 +276,11 @@ async function rpcCall(method: string, params: unknown[]) {
   }
 
   const typed = payload as { error?: { message?: string }; result?: unknown };
-
   if (typed.error) {
     throw new Error(typed.error.message || `RPC ${method} error`);
   }
-
   return typed.result;
+}
 
 async function ethCall(address: Address, data: Hex) {
   return (await rpcCall("eth_call", [
@@ -329,8 +312,7 @@ async function readBalanceOf(wallet: Address) {
 }
 
 async function readTokenOfOwnerByIndex(wallet: Address, index: bigint) {
-  const data =
-    `0x${SELECTORS.tokenOfOwnerByIndex}${encodeAddress(wallet)}${encodeUint(index)}` as Hex;
+  const data = `0x${SELECTORS.tokenOfOwnerByIndex}${encodeAddress(wallet)}${encodeUint(index)}` as Hex;
   const response = await ethCall(NONFUNGIBLE_POSITION_MANAGER, data);
   return hexToBigInt(response.replace(/^0x/, ""));
 }
@@ -362,7 +344,6 @@ async function readPositions(tokenId: bigint) {
       owed1: hexToBigInt(words[11] ?? "0"),
     };
   }
-
   return base;
 }
 
@@ -394,8 +375,7 @@ async function readSymbol(token: Address) {
 }
 
 async function readPoolByPair(token0: Address, token1: Address) {
-  const data =
-    `0x${SELECTORS.poolByPair}${encodeAddress(token0)}${encodeAddress(token1)}` as Hex;
+  const data = `0x${SELECTORS.poolByPair}${encodeAddress(token0)}${encodeAddress(token1)}` as Hex;
   const response = await ethCall(ALGEBRA_FACTORY, data);
   const decoded = hexToAddress(response.replace(/^0x/, ""));
   if (decoded === "0x0000000000000000000000000000000000000000") {
@@ -424,54 +404,97 @@ function plausible(tickLower: number, tickUpper: number, liquidity: bigint) {
   return abs(tickLower) < 3_000_000 && abs(tickUpper) < 3_000_000 && liquidity > 0n && liquidity <= MAX_U128;
 }
 
-function tickToPrice(tick: number) {
-  return Math.pow(1.0001, tick);
+/* =========================
+   Q96 / TickMath BigInt math
+   ========================= */
+const Q96 = 1n << 96n;
+
+function mulDiv(a: bigint, b: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) throw new Error("mulDiv: division by zero");
+  return (a * b) / denominator;
 }
 
-function tickToSqrtPrice(tick: number) {
-  return Math.sqrt(tickToPrice(tick));
+// Port of Uniswap V3 TickMath.getSqrtRatioAtTick
+function getSqrtRatioAtTick(tick: number): bigint {
+  let absTick = BigInt(tick < 0 ? -tick : tick);
+  let ratio = (absTick & 0x1n) !== 0n ? 0xfffcb933bd6fad37aa2d162d1a594001n : 0x100000000000000000000000000000000n;
+  if ((absTick & 0x2n)   !== 0n) ratio = mulDiv(ratio, 0xfff97272373d413259a46990580e213an, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x4n)   !== 0n) ratio = mulDiv(ratio, 0xfff2e50f5f656932ef12357cf3c7fdccn, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x8n)   !== 0n) ratio = mulDiv(ratio, 0xffe5caca7e10e4e61c3624eaa0941cd0n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x10n)  !== 0n) ratio = mulDiv(ratio, 0xffcb9843d60f6159c9db58835c926644n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x20n)  !== 0n) ratio = mulDiv(ratio, 0xff973b41fa98c081472e6896dfb254c0n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x40n)  !== 0n) ratio = mulDiv(ratio, 0xff2ea16466c96a3843ec78b326b52861n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x80n)  !== 0n) ratio = mulDiv(ratio, 0xfe5dee046a99a2a811c461f1969c3053n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x100n) !== 0n) ratio = mulDiv(ratio, 0xfcbe86c7900a88aedcffc83b479aa3a4n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x200n) !== 0n) ratio = mulDiv(ratio, 0xf987a7253ac413176f2b074cf7815e54n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x400n) !== 0n) ratio = mulDiv(ratio, 0xf3392b0822b70005940c7a398e4b70f3n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x800n) !== 0n) ratio = mulDiv(ratio, 0xe7159475a2c29b7443b29c7fa6e889d9n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x1000n)!== 0n) ratio = mulDiv(ratio, 0xd097f3bdfd2022b8845ad8f792aa5825n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x2000n)!== 0n) ratio = mulDiv(ratio, 0xa9f746462d870fdf8a65dc1f90e061e5n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x4000n)!== 0n) ratio = mulDiv(ratio, 0x70d869a156d2a1b890bb3df62baf32f7n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x8000n)!== 0n) ratio = mulDiv(ratio, 0x31be135f97d08fd981231505542fcfa6n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x10000n)!== 0n) ratio = mulDiv(ratio, 0x9aa508b5b7a84e1c677de54f3e99bc9n, 0x100000000000000000000000000000000n);
+  if ((absTick & 0x20000n)!== 0n) ratio = mulDiv(ratio, 0x5d6af8dedb81196699c329225ee604n,  0x100000000000000000000000000000000n);
+  if ((absTick & 0x40000n)!== 0n) ratio = mulDiv(ratio, 0x2216e584f5fa1ea926041bedfe98n,     0x100000000000000000000000000000000n);
+  if ((absTick & 0x80000n)!== 0n) ratio = mulDiv(ratio, 0x48a170391f7dc42444e8fa2n,           0x100000000000000000000000000000000n);
+  if (tick > 0) {
+    const two256 = 1n << 256n;
+    ratio = (two256 - 1n) / ratio;
+  }
+  const remainderMask = (1n << 32n) - 1n;
+  return (ratio >> 32n) + ((ratio & remainderMask) === 0n ? 0n : 1n);
 }
 
-function amountsFromLiquidity(liquidity: bigint, currentTick: number, tickLower: number, tickUpper: number) {
-  let sqrtP = tickToSqrtPrice(currentTick);
-  let sqrtA = tickToSqrtPrice(tickLower);
-  let sqrtB = tickToSqrtPrice(tickUpper);
-  if (sqrtA > sqrtB) [sqrtA, sqrtB] = [sqrtB, sqrtA];
+function getAmount0ForLiquidity(sqrtAX96: bigint, sqrtBX96: bigint, L: bigint): bigint {
+  if (sqrtAX96 > sqrtBX96) [sqrtAX96, sqrtBX96] = [sqrtBX96, sqrtAX96];
+  const numerator = L << 96n; // L * 2^96
+  const delta = sqrtBX96 - sqrtAX96;
+  const intermediate = mulDiv(sqrtAX96, sqrtBX96, Q96); // (sqrtA * sqrtB) / Q96
+  return mulDiv(numerator, delta, intermediate);
+}
 
-  if (!Number.isFinite(sqrtP) || sqrtP <= 0) {
-    sqrtP = (sqrtA + sqrtB) / 2;
-  }
+function getAmount1ForLiquidity(sqrtAX96: bigint, sqrtBX96: bigint, L: bigint): bigint {
+  if (sqrtAX96 > sqrtBX96) [sqrtAX96, sqrtBX96] = [sqrtBX96, sqrtAX96];
+  const delta = sqrtBX96 - sqrtAX96;
+  return mulDiv(L, delta, Q96);
+}
 
-  const L = Number(liquidity);
-  if (!Number.isFinite(L) || L <= 0) {
-    return { amount0: 0, amount1: 0 };
-  }
+function amountsFromLiquidityQ96(
+  liquidity: bigint,
+  currentTick: number,
+  tickLower: number,
+  tickUpper: number
+): { amount0: bigint; amount1: bigint } {
+  const sqrtP = getSqrtRatioAtTick(currentTick);
+  const sqrtA = getSqrtRatioAtTick(Math.min(tickLower, tickUpper));
+  const sqrtB = getSqrtRatioAtTick(Math.max(tickLower, tickUpper));
 
-  if (sqrtP <= sqrtA) {
-    return { amount0: L * ((sqrtB - sqrtA) / (sqrtA * sqrtB)), amount1: 0 };
-  }
+  if (sqrtP <= sqrtA) return { amount0: getAmount0ForLiquidity(sqrtA, sqrtB, liquidity), amount1: 0n };
+  if (sqrtP < sqrtB)
+    return {
+      amount0: getAmount0ForLiquidity(sqrtP, sqrtB, liquidity),
+      amount1: getAmount1ForLiquidity(sqrtA, sqrtP, liquidity),
+    };
+  return { amount0: 0n, amount1: getAmount1ForLiquidity(sqrtA, sqrtB, liquidity) };
+}
 
-  if (sqrtP >= sqrtB) {
-    return { amount0: 0, amount1: L * (sqrtB - sqrtA) };
-  }
+/* ========================= */
 
-  return {
-    amount0: L * ((sqrtB - sqrtP) / (sqrtP * sqrtB)),
-    amount1: L * (sqrtP - sqrtA),
-  };
+function humanPriceToken1PerToken0(tick: number, decimals0: number, decimals1: number): number {
+  const p = Math.pow(1.0001, tick); // token1/token0 in raw units
+  const scale = Math.pow(10, decimals1 - decimals0); // NOTE: decimals1 - decimals0
+  return p * scale;
 }
 
 function isStable(symbol: string) {
   const upper = symbol.toUpperCase();
-  return ["USD", "USDT", "USDC", "DAI", "USDE"].some((needle) => upper.includes(needle));
+  return ["USD", "USDT", "USDC", "DAI", "USDE", "USD∅", "USD0", "USDO"].some((n) => upper.includes(n));
 }
 
 function clampPrecision(value: number) {
   if (!Number.isFinite(value)) return 0;
   const abs = Math.abs(value);
-  if (abs >= 1e9) {
-    return Number(value.toExponential(4));
-  }
+  if (abs >= 1e9) return Number(value.toExponential(4));
   return Number(value.toFixed(6));
 }
 
@@ -494,7 +517,6 @@ async function scanTransferLogsForIds(wallet: Address) {
   const latest = await getBlockNumber();
   const toTopics: (Hex | null)[] = [TRANSFER_TOPIC, null, toTopicAddress(wallet)];
   const fromTopics: (Hex | null)[] = [TRANSFER_TOPIC, toTopicAddress(wallet), null];
-
   for (const topics of [toTopics, fromTopics]) {
     let from = START_BLOCK;
     while (from <= latest) {
@@ -502,10 +524,8 @@ async function scanTransferLogsForIds(wallet: Address) {
       try {
         const logs = await getLogs(NONFUNGIBLE_POSITION_MANAGER, from, to, topics);
         for (const log of logs) {
-          const topic = log.topics?.[3];
-          if (topic) {
-            ids.add(Number(BigInt(topic)));
-          }
+          const topic = (log as any).topics?.[3] as Hex | undefined;
+          if (topic) ids.add(Number(BigInt(topic)));
         }
       } catch {
         const mid = from + CHUNK_SPAN / 2n;
@@ -513,27 +533,21 @@ async function scanTransferLogsForIds(wallet: Address) {
           const first = await getLogs(NONFUNGIBLE_POSITION_MANAGER, from, mid, topics);
           const second = await getLogs(NONFUNGIBLE_POSITION_MANAGER, mid + 1n, to, topics);
           for (const log of [...first, ...second]) {
-            const topic = log.topics?.[3];
+            const topic = (log as any).topics?.[3] as Hex | undefined;
             if (topic) ids.add(Number(BigInt(topic)));
           }
         } catch {
-          // ignore and continue
+          // ignore span
         }
       }
       from = to + 1n;
     }
   }
-
   return [...ids].sort((a, b) => a - b);
 }
 
 async function resolveOwnedTokenIds(wallet: Address, attempts: AttemptLog[]) {
-  const enumerationAttempt: AttemptLog = {
-    step: "enumerate-token-ids",
-    success: false,
-    details: "Attempting ERC-721 enumeration",
-  };
-
+  const enumerationAttempt: AttemptLog = { step: "enumerate-token-ids", success: false, details: "Attempting ERC-721 enumeration" };
   const viaEnum = await tryEnumerableTokenIds(wallet);
   if (viaEnum.length > 0) {
     enumerationAttempt.success = true;
@@ -541,16 +555,10 @@ async function resolveOwnedTokenIds(wallet: Address, attempts: AttemptLog[]) {
     attempts.push(enumerationAttempt);
     return viaEnum;
   }
-
   enumerationAttempt.details = "Enumeration failed, falling back to log scan";
   attempts.push(enumerationAttempt);
 
-  const scanAttempt: AttemptLog = {
-    step: "scan-transfer-logs",
-    success: false,
-    details: `Scanning transfer logs with span ${CHUNK_SPAN}`,
-  };
-
+  const scanAttempt: AttemptLog = { step: "scan-transfer-logs", success: false, details: `Scanning transfer logs with span ${CHUNK_SPAN}` };
   const viaLogs = await scanTransferLogsForIds(wallet);
   if (viaLogs.length > 0) {
     scanAttempt.success = true;
@@ -559,7 +567,6 @@ async function resolveOwnedTokenIds(wallet: Address, attempts: AttemptLog[]) {
     scanAttempt.error = "No tokenIds recovered from logs";
   }
   attempts.push(scanAttempt);
-
   return viaLogs;
 }
 
@@ -567,6 +574,17 @@ async function resolvePoolAddress(token0: Address, token1: Address, tokenId: num
   const poolFromFarm = await readDepositPool(BigInt(tokenId));
   if (poolFromFarm) return poolFromFarm;
   return readPoolByPair(token0, token1);
+}
+
+function formatUnitsClamp(value: bigint, decimals: number) {
+  const negative = value < 0n;
+  const bigintValue = negative ? -value : value;
+  const base = 10n ** BigInt(decimals);
+  const whole = bigintValue / base;
+  const fraction = bigintValue % base;
+  const fractionStr = fraction.toString().padStart(decimals, "0").replace(/0+$/, "");
+  const result = `${negative ? "-" : ""}${whole.toString()}${fractionStr ? `.${fractionStr}` : ""}`;
+  return parseFloat(result);
 }
 
 function toKittenswapPosition(params: {
@@ -585,19 +603,8 @@ function toKittenswapPosition(params: {
   tokenId: number;
 }) {
   const {
-    symbol0,
-    symbol1,
-    decimals0,
-    decimals1,
-    amount0,
-    amount1,
-    owed0,
-    owed1,
-    tick,
-    tickLower,
-    tickUpper,
-    liquidity,
-    tokenId,
+    symbol0, symbol1, decimals0, decimals1, amount0, amount1, owed0, owed1,
+    tick, tickLower, tickUpper, liquidity, tokenId,
   } = params;
   const poolName = `${symbol0}/${symbol1} • #${tokenId}`;
 
@@ -607,15 +614,10 @@ function toKittenswapPosition(params: {
   const sortedLower = Math.min(tickLower, tickUpper);
   const sortedUpper = Math.max(tickLower, tickUpper);
 
-  const priceScale = Math.pow(10, decimals0 - decimals1);
-  const safeScale = Number.isFinite(priceScale) && priceScale > 0 ? priceScale : 1;
-  const priceNowRaw = tickToPrice(tick);
-  const priceLowerRaw = tickToPrice(sortedLower);
-  const priceUpperRaw = tickToPrice(sortedUpper);
-
-  const priceCurrent = Number.isFinite(priceNowRaw * safeScale) ? priceNowRaw * safeScale : undefined;
-  const priceLower = Number.isFinite(priceLowerRaw * safeScale) ? priceLowerRaw * safeScale : undefined;
-  const priceUpper = Number.isFinite(priceUpperRaw * safeScale) ? priceUpperRaw * safeScale : undefined;
+  // prices in human units (token1 per token0)
+  const priceCurrent = humanPriceToken1PerToken0(tick, decimals0, decimals1);
+  const priceLower = humanPriceToken1PerToken0(sortedLower, decimals0, decimals1);
+  const priceUpper = humanPriceToken1PerToken0(sortedUpper, decimals0, decimals1);
 
   const baseStable = isStable(symbol0Upper);
   const quoteStable = isStable(symbol1Upper);
@@ -628,7 +630,6 @@ function toKittenswapPosition(params: {
     : quoteStable && priceCurrent && priceCurrent > 0
       ? (value: number) => value * priceCurrent
       : undefined;
-
   const token1ToUsd = quoteStable
     ? (value: number) => value
     : baseStable && priceCurrent && priceCurrent > 0
@@ -638,33 +639,17 @@ function toKittenswapPosition(params: {
   const totalValueParts: number[] = [];
   if (token0ToUsd) totalValueParts.push(token0ToUsd(amount0));
   if (token1ToUsd) totalValueParts.push(token1ToUsd(amount1));
-  const totalValueUsd = totalValueParts.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+  const totalValueUsdRaw = totalValueParts.reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+  const totalValueUsd = (Number.isFinite(totalValueUsdRaw) && totalValueUsdRaw >= 0 && totalValueUsdRaw < 1e9) ? totalValueUsdRaw : 0;
 
   const accruedUsdParts: number[] = [];
   if (token0ToUsd) accruedUsdParts.push(token0ToUsd(owed0Human));
   if (token1ToUsd) accruedUsdParts.push(token1ToUsd(owed1Human));
-  const accruedFeesUsd =
-    accruedUsdParts.length > 0
-      ? accruedUsdParts.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0)
-      : undefined;
+  const accruedFeesUsd = accruedUsdParts.length > 0 ? accruedUsdParts.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0) : undefined;
 
   let rewardKitten: number | undefined;
-  let rewardKittenUsd: number | undefined;
-  if (symbol0Upper.includes("KITTEN")) {
-    rewardKitten = clampPrecision(owed0Human);
-    if (token0ToUsd) {
-      rewardKittenUsd = token0ToUsd(owed0Human);
-    }
-  } else if (symbol1Upper.includes("KITTEN")) {
-    rewardKitten = clampPrecision(owed1Human);
-    if (token1ToUsd) {
-      rewardKittenUsd = token1ToUsd(owed1Human);
-    }
-  }
-
-  if (rewardKittenUsd !== undefined && !Number.isFinite(rewardKittenUsd)) {
-    rewardKittenUsd = undefined;
-  }
+  if (symbol0Upper.includes("KITTEN")) rewardKitten = clampPrecision(owed0Human);
+  else if (symbol1Upper.includes("KITTEN")) rewardKitten = clampPrecision(owed1Human);
 
   const accruedFeesTokens: Record<string, number> = {
     [symbol0Upper]: clampPrecision(owed0Human),
@@ -673,16 +658,13 @@ function toKittenswapPosition(params: {
 
   return {
     poolName,
-    totalValueUsd: Number.isFinite(totalValueUsd) && totalValueUsd > 0 ? totalValueUsd : 0,
+    totalValueUsd,
     sharePercent: undefined,
-    tokenAmounts: {
-      [symbol0Upper]: clampPrecision(amount0),
-      [symbol1Upper]: clampPrecision(amount1),
-    },
+    tokenAmounts: { [symbol0Upper]: clampPrecision(amount0), [symbol1Upper]: clampPrecision(amount1) },
     accruedFeesUsd,
     accruedFeesTokens,
     rewardKitten,
-    rewardKittenUsd,
+    rewardKittenUsd: undefined, // filled later when we know KITTEN price
     priceLower,
     priceUpper,
     priceCurrent,
@@ -692,17 +674,6 @@ function toKittenswapPosition(params: {
     isActive: liquidity > 0n,
     lastUpdated: new Date().toISOString(),
   } satisfies KittenswapPosition;
-}
-
-function formatUnitsClamp(value: bigint, decimals: number) {
-  const negative = value < 0n;
-  const bigintValue = negative ? -value : value;
-  const base = 10n ** BigInt(decimals);
-  const whole = bigintValue / base;
-  const fraction = bigintValue % base;
-  const fractionStr = fraction.toString().padStart(decimals, "0").replace(/0+$/, "");
-  const result = `${negative ? "-" : ""}${whole.toString()}${fractionStr ? `.${fractionStr}` : ""}`;
-  return parseFloat(result);
 }
 
 async function resolvePosition(tokenId: number, attempts: AttemptLog[]) {
@@ -720,12 +691,18 @@ async function resolvePosition(tokenId: number, attempts: AttemptLog[]) {
       readSymbol(position.token1).catch(() => "TKN"),
     ]);
 
-    const { amount0, amount1 } = amountsFromLiquidity(
+    const lower = Math.min(position.tickLower, position.tickUpper);
+    const upper = Math.max(position.tickLower, position.tickUpper);
+
+    const { amount0: raw0, amount1: raw1 } = amountsFromLiquidityQ96(
       position.liquidity,
       currentTick,
-      Math.min(position.tickLower, position.tickUpper),
-      Math.max(position.tickLower, position.tickUpper)
+      lower,
+      upper
     );
+
+    const amount0 = Number(formatUnitsClamp(raw0, decimals0));
+    const amount1 = Number(formatUnitsClamp(raw1, decimals1));
 
     attempt.success = true;
     attempt.details = `${symbol0}/${symbol1} tokenId #${tokenId}`;
@@ -741,8 +718,8 @@ async function resolvePosition(tokenId: number, attempts: AttemptLog[]) {
       owed0: position.owed0,
       owed1: position.owed1,
       tick: currentTick,
-      tickLower: Math.min(position.tickLower, position.tickUpper),
-      tickUpper: Math.max(position.tickLower, position.tickUpper),
+      tickLower: lower,
+      tickUpper: upper,
       liquidity: position.liquidity,
       tokenId,
     });
@@ -753,42 +730,87 @@ async function resolvePosition(tokenId: number, attempts: AttemptLog[]) {
   }
 }
 
+async function fetchKittenUsd0Price(): Promise<number | undefined> {
+  try {
+    if (KITTEN_TOKEN === ("0x0000000000000000000000000000000000000000" as Address) ||
+        USD0_TOKEN === ("0x0000000000000000000000000000000000000000" as Address)) {
+      return undefined;
+    }
+    let pool: Address | undefined;
+    try { pool = await readPoolByPair(KITTEN_TOKEN, USD0_TOKEN); } catch { /* try reverse */ }
+    if (!pool) {
+      try { pool = await readPoolByPair(USD0_TOKEN, KITTEN_TOKEN); } catch { /* no pool */ }
+    }
+    if (!pool) return undefined;
+    const { currentTick } = await readGlobalState(pool);
+    const [decK, decU] = await Promise.all([readDecimals(KITTEN_TOKEN), readDecimals(USD0_TOKEN)]);
+
+    // Try interpreting tick as token1/token0 with token0=KITTEN, token1=USD0
+    const usd0PerKitten = humanPriceToken1PerToken0(currentTick, decK, decU);
+    if (Number.isFinite(usd0PerKitten) && usd0PerKitten > 1e-12 && usd0PerKitten < 1e12) return usd0PerKitten;
+
+    // else interpret reversed and invert
+    const kittenPerUsd0 = humanPriceToken1PerToken0(currentTick, decU, decK);
+    if (Number.isFinite(kittenPerUsd0) && kittenPerUsd0 > 1e-12 && kittenPerUsd0 < 1e12) return 1 / kittenPerUsd0;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function fetchOnchainKittenswapPositions(walletAddress: Address) {
   const attempts: AttemptLog[] = [];
   const tokenIds = await resolveOwnedTokenIds(walletAddress, attempts);
 
   if (tokenIds.length === 0) {
-    attempts.push({
-      step: "no-token-ids",
-      success: false,
-      error: `No KittenSwap LP NFTs found for ${walletAddress}`,
-    });
-    return { positions: [], attempts, source: `HyperEVM RPC ${RPC_URL}` };
+    attempts.push({ step: "no-token-ids", success: false, error: `No KittenSwap LP NFTs found for ${walletAddress}` });
+    return { positions: [], attempts, source: `HyperEVM RPC ${RPC_URL}`, meta: {} as FetchResultMeta };
   }
 
   const positions: KittenswapPosition[] = [];
   for (const tokenId of tokenIds) {
     const position = await resolvePosition(tokenId, attempts);
-    if (position) {
-      positions.push(position);
-    }
+    if (position) positions.push(position);
   }
 
   if (positions.length === 0) {
-    attempts.push({
-      step: "positions-empty",
-      success: false,
-      error: "Unable to decode any KittenSwap positions",
-    });
+    attempts.push({ step: "positions-empty", success: false, error: "Unable to decode any KittenSwap positions" });
   }
 
-  return { positions, attempts, source: `HyperEVM RPC ${RPC_URL}` };
+  // KITTEN fees valuation
+  const kittenUsd = await fetchKittenUsd0Price();
+  let totalKittenFees = 0;
+  let totalKittenFeesUsd = 0;
+
+  for (const p of positions) {
+    const kittenFees = p.accruedFeesTokens["KITTEN"] ?? p.accruedFeesTokens["WKITTEN"] ?? 0;
+    totalKittenFees += kittenFees;
+    if (kittenUsd && Number.isFinite(kittenUsd)) {
+      const usd = kittenFees * kittenUsd;
+      totalKittenFeesUsd += usd;
+      if (p.rewardKitten !== undefined && (p.rewardKittenUsd === undefined || p.rewardKittenUsd === 0)) {
+        p.rewardKittenUsd = clampPrecision(p.rewardKitten * kittenUsd);
+      }
+    }
+  }
+
+  attempts.push({
+    step: "kitten-fees-total",
+    success: true,
+    details: `KITTEN fees total: ${totalKittenFees} (~${kittenUsd ? clampPrecision(totalKittenFeesUsd) : "n/a"}) at price ${kittenUsd ?? "unknown"} USD0/KITTEN`,
+  });
+
+  const meta: FetchResultMeta = {
+    kittenUsd: kittenUsd,
+    totalKittenFees: clampPrecision(totalKittenFees),
+    totalKittenFeesUsd: kittenUsd ? clampPrecision(totalKittenFeesUsd) : undefined,
+  };
+
+  return { positions, attempts, source: `HyperEVM RPC ${RPC_URL}`, meta };
 }
 
-export function isValidWalletAddress(address: unknown): address is Address {
-  if (typeof address !== "string") {
-    return false;
-  }
-  const trimmed = address.trim();
-  return /^0x[a-fA-F0-9]{40}$/.test(trimmed);
+/** Keep async because file has "use server" and Next treats exports as Server Actions. */
+export async function isValidWalletAddress(address: unknown): Promise<boolean> {
+  if (typeof address !== "string") return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(address.trim());
 }
