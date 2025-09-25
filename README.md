@@ -45,6 +45,11 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
     ```bash
     npm install
     ```
+3. **(Optional) Configure on-chain RPC settings:**
+   The tracker now decodes KittenSwap Algebra CLMM NFTs directly from HyperEVM. You can tweak the RPC and log scanning behaviour in `.env.local` if needed:
+    ```bash
+    # Override the default HyperEVM RPC endpoint
+    HYPEREVM_RPC=https://rpc.hyperliquid.xyz/evm
 
 3. **(Optional) Configure on-chain RPC settings:**
    The tracker now decodes KittenSwap Algebra CLMM NFTs directly from HyperEVM. You can tweak the RPC and log scanning behaviour in `.env.local` if needed:

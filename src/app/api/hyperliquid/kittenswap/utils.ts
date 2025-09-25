@@ -298,7 +298,6 @@ async function rpcCall(method: string, params: unknown[]) {
   }
 
   return typed.result;
-}
 
 async function ethCall(address: Address, data: Hex) {
   return (await rpcCall("eth_call", [
