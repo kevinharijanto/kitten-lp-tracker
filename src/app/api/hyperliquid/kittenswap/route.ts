@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchKittenswapData } from "./providers";
 import { isValidWalletAddress, type Address } from "./utils";
 
+export const runtime = "nodejs";
 interface RequestBody {
   walletAddress?: string;
 }

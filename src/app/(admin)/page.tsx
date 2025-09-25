@@ -39,7 +39,6 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 6,
 });
-
 function formatPrice(value?: number) {
   if (value === undefined || !Number.isFinite(value)) return "-";
   const abs = Math.abs(value);
@@ -67,7 +66,6 @@ export default function HyperliquidKittenswapPage() {
       setError("Wallet must be a valid 0x-prefixed Hyperliquid address.");
       return;
     }
-
     setIsLoading(true);
     setError(null);
     try {

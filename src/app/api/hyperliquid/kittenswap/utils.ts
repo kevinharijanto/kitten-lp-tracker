@@ -1,8 +1,14 @@
+"use server";
+
 import { keccak_256 } from "@noble/hashes/sha3";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { connect as tlsConnect } from "node:tls";
+import http from "http";
+import https from "https";
+import tls from "tls";
+
+const { request: httpRequest } = http;
+const { request: httpsRequest } = https;
+const { connect: tlsConnect } = tls;
 
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
