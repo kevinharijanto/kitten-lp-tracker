@@ -55,7 +55,6 @@ export default function HyperliquidKittenswapPage() {
   const [positions, setPositions] = useState<KittenswapPosition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
   const isValidWallet = (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value.trim());
 
   const handleTrackWallet = async () => {
@@ -179,7 +178,6 @@ export default function HyperliquidKittenswapPage() {
           </p>
         )}
       </section>
-
       <section className="grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
           <p className="text-sm text-gray-500 dark:text-gray-400">Total Value</p>
