@@ -1,5 +1,8 @@
 import { keccak_256 } from "@noble/hashes/sha3";
 import { utf8ToBytes } from "@noble/hashes/utils";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { connect as tlsConnect } from "node:tls";
 
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
@@ -31,6 +34,159 @@ export interface AttemptLog {
 }
 
 const RPC_URL = process.env.HYPEREVM_RPC || "https://rpc.hyperliquid.xyz/evm";
+
+const PROXY_URL =
+  process.env.HTTPS_PROXY ||
+  process.env.https_proxy ||
+  process.env.HTTP_PROXY ||
+  process.env.http_proxy;
+
+const NO_PROXY = process.env.NO_PROXY || process.env.no_proxy;
+
+function shouldBypassProxy(targetUrl: string) {
+  if (!NO_PROXY) return false;
+
+  try {
+    const hostname = new URL(targetUrl).hostname.toLowerCase();
+    const entries = NO_PROXY.split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+
+    return entries.some((entry) => {
+      if (entry === "*") return true;
+      if (hostname === entry) return true;
+      if (entry.startsWith(".")) {
+        return hostname.endsWith(entry);
+      }
+      return hostname.endsWith(`.${entry}`);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function performHttpRequest(target: URL, body: string, proxyUrl?: URL) {
+  return new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body).toString(),
+    };
+
+    const isHttps = target.protocol === "https:";
+
+    if (!proxyUrl || shouldBypassProxy(target.href)) {
+      const requestFn = isHttps ? httpsRequest : httpRequest;
+      const req = requestFn(
+        {
+          method: "POST",
+          hostname: target.hostname,
+          port: target.port ? Number(target.port) : isHttps ? 443 : 80,
+          path: `${target.pathname}${target.search}`,
+          headers,
+        },
+        (res) => {
+          let data = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => {
+            resolve({ statusCode: res.statusCode ?? 0, body: data });
+          });
+        }
+      );
+      req.on("error", reject);
+      req.write(body);
+      req.end();
+      return;
+    }
+
+    const proxy = proxyUrl;
+
+    if (isHttps) {
+      const connectReq = httpRequest(
+        {
+          host: proxy.hostname,
+          port: proxy.port ? Number(proxy.port) : 80,
+          method: "CONNECT",
+          path: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
+          headers: {
+            Host: `${target.hostname}:${target.port ? Number(target.port) : 443}`,
+            "Proxy-Connection": "keep-alive",
+          },
+        }
+      );
+
+      connectReq.once("connect", (res, socket) => {
+        if (res.statusCode !== 200) {
+          socket.destroy();
+          reject(new Error(`Proxy CONNECT failed with status ${res.statusCode}`));
+          return;
+        }
+
+        const tlsSocket = tlsConnect({
+          socket,
+          servername: target.hostname,
+        });
+
+        const req = httpsRequest(
+          {
+            method: "POST",
+            host: target.hostname,
+            port: target.port ? Number(target.port) : 443,
+            path: `${target.pathname}${target.search}`,
+            headers,
+            createConnection: () => tlsSocket,
+          },
+          (res) => {
+            let data = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk) => {
+              data += chunk;
+            });
+            res.on("end", () => {
+              resolve({ statusCode: res.statusCode ?? 0, body: data });
+            });
+          }
+        );
+        req.on("error", (error) => {
+          tlsSocket.destroy();
+          reject(error);
+        });
+        req.write(body);
+        req.end();
+      });
+
+      connectReq.once("error", reject);
+      connectReq.end();
+      return;
+    }
+
+    const req = httpRequest(
+      {
+        method: "POST",
+        host: proxy.hostname,
+        port: proxy.port ? Number(proxy.port) : 80,
+        path: target.href,
+        headers: {
+          ...headers,
+          Host: target.host,
+        },
+      },
+      (res) => {
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          resolve({ statusCode: res.statusCode ?? 0, body: data });
+        });
+      }
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 const NONFUNGIBLE_POSITION_MANAGER: Address = "0x9ea4459c8DefBF561495d95414b9CF1E2242a3E2";
 const ALGEBRA_FACTORY: Address = "0x5f95E92c338e6453111Fc55ee66D4AafccE661A7";
@@ -108,24 +264,34 @@ function decodeString(data: Hex) {
 }
 
 async function rpcCall(method: string, params: unknown[]) {
-  const response = await fetch(RPC_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
-  });
+  const target = new URL(RPC_URL);
+  const proxy = PROXY_URL && !shouldBypassProxy(RPC_URL) ? new URL(PROXY_URL) : undefined;
+  const body = JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params });
 
-  if (!response.ok) {
-    throw new Error(`RPC ${method} failed with status ${response.status}`);
+  const { statusCode, body: responseBody } = await performHttpRequest(target, body, proxy);
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error(`RPC ${method} failed with status ${statusCode}`);
   }
 
-  const payload = await response.json();
-  if (payload.error) {
-    throw new Error(payload.error.message || `RPC ${method} error`);
+  let payload: unknown;
+  try {
+    payload = JSON.parse(responseBody);
+  } catch (error) {
+    throw new Error(`RPC ${method} returned invalid JSON: ${(error as Error).message}`);
   }
 
-  return payload.result;
-}
+  if (!payload || typeof payload !== "object") {
+    throw new Error(`RPC ${method} returned malformed payload`);
+  }
+
+  const typed = payload as { error?: { message?: string }; result?: unknown };
+
+  if (typed.error) {
+    throw new Error(typed.error.message || `RPC ${method} error`);
+  }
+
+  return typed.result;
 
 async function ethCall(address: Address, data: Hex) {
   return (await rpcCall("eth_call", [
