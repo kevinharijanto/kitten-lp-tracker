@@ -1,18 +1,18 @@
-# SUI Liquidity Provider Tracker
+# Hyperliquid Kittenswap LP Tracker
 
-Welcome to the **SUI Liquidity Provider Tracker** project!  
-This app helps you track your SUI LP (Liquidity Provider) positions, claim fees, and portfolio performance in real time.
+Welcome to the **Hyperliquid Kittenswap LP Tracker** project!
+This app helps you inspect Kittenswap liquidity provider (LP) positions for any Hyperliquid wallet.
 
 ---
 
 ## About
 
-This project is a work-in-progress tool for tracking SUI liquidity provider activity, including:
+This project is a work-in-progress tool for tracking Hyperliquid Kittenswap liquidity provider activity, including:
 
-- **LP Positions**: See your deposits, withdrawals, and current values.
-- **Claim Fees**: Track all claim fees, with breakdowns by token and time period.
-- **Impermanent Loss**: Visualize your IL and portfolio changes.
-- **Exclusion Feature**: Exclude specific transactions from calculations for custom analytics.
+- **LP Positions**: View all detected Kittenswap pools for a wallet and their USD values.
+- **Token Exposure**: See the token amounts that make up each LP position.
+- **Fees**: Inspect any accrued or claimable fees if Hyperliquid exposes them.
+- **Timestamps**: Check when each position was last updated according to the payload data.
 
 The frontend is built using [TailAdmin](https://tailadmin.com) (Next.js + Tailwind CSS), providing a modern, responsive dashboard UI.
 
@@ -33,33 +33,38 @@ If you find bugs or have suggestions, please open an issue or feedback on this r
 
 ---
 
-## Demo
-
-*Coming soon!*
-
----
-
 ## How to Run
 
 1. **Clone the repo:**
     ```bash
-    git clone https://github.com/your-username/sui-lp-tracker.git
-    cd sui-lp-tracker
+    git clone https://github.com/your-username/kitten-lp-tracker.git
+    cd kitten-lp-tracker
     ```
 
 2. **Install dependencies:**
     ```bash
     npm install
-    # or
-    yarn install
     ```
 
-3. **Start the development server:**
+3. **(Optional) Configure on-chain RPC settings:**
+   The tracker now decodes KittenSwap Algebra CLMM NFTs directly from HyperEVM. You can tweak the RPC and log scanning behaviour in `.env.local` if needed:
+    ```bash
+    # Override the default HyperEVM RPC endpoint
+    HYPEREVM_RPC=https://rpc.hyperliquid.xyz/evm
+
+    # (Optional) Optimise transfer log scanning when enumeration fails
+    START_BLOCK=0
+    CHUNK_SPAN=800
+    ```
+   The defaults work for most setups, but operators running their own archival RPCs can lower `CHUNK_SPAN` or raise `START_BLOCK` to improve responsiveness.
+
+4. **Start the development server:**
     ```bash
     npm run dev
-    # or
-    yarn dev
     ```
+
+5. **Open the tracker:**
+   Visit [http://localhost:3000/admin](http://localhost:3000/admin) and enter any Hyperliquid wallet address to fetch its Kittenswap LP positions.
 
 ---
 
